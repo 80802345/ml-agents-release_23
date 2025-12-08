@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 import numpy as np
-from mlagents.torch_utils import torch, default_device
+import paddle
 import copy
 
 from mlagents.trainers.action_info import ActionInfo
@@ -10,14 +10,14 @@ from mlagents_envs.base_env import DecisionSteps, BehaviorSpec
 from mlagents_envs.timers import timed
 
 from mlagents.trainers.settings import NetworkSettings
-from mlagents.trainers.torch_entities.networks import GlobalSteps
-
-from mlagents.trainers.torch_entities.utils import ModelUtils
+# Ensure you have this class converted in paddle_entities/layers.py or networks.py
+from mlagents.trainers.paddle_entities.networks import GlobalSteps
+from mlagents.trainers.paddle_entities.utils import ModelUtils
 
 EPSILON = 1e-7  # Small value to avoid divide by zero
 
 
-class TorchPolicy(Policy):
+class PaddlePolicy(Policy):
     def __init__(
         self,
         seed: int,
@@ -39,7 +39,7 @@ class TorchPolicy(Policy):
         super().__init__(seed, behavior_spec, network_settings)
         self.global_step = (
             GlobalSteps()
-        )  # could be much simpler if TorchPolicy is nn.Module
+        )  # could be much simpler if PaddlePolicy is nn.Layer
 
         self.stats_name_to_update_name = {
             "Losses/Value Loss": "value_loss",
@@ -58,7 +58,8 @@ class TorchPolicy(Policy):
         # m_size needed for training is determined by network, not trainer settings
         self.m_size = self.actor.memory_size
 
-        self.actor.to(default_device())
+        # Paddle handles device automatically based on paddle.set_device()
+        # self.actor.to(default_device())
 
     @property
     def export_memory_size(self) -> int:
@@ -69,18 +70,16 @@ class TorchPolicy(Policy):
         return self._export_m_size
 
     def _extract_masks(self, decision_requests: DecisionSteps) -> np.ndarray:
-        device = default_device()
         mask = None
         if self.behavior_spec.action_spec.discrete_size > 0:
             num_discrete_flat = np.sum(self.behavior_spec.action_spec.discrete_branches)
-            mask = torch.ones(
-                [len(decision_requests), num_discrete_flat], device=device
+            mask = paddle.ones(
+                [len(decision_requests), num_discrete_flat], dtype='float32'
             )
             if decision_requests.action_mask is not None:
-                mask = torch.as_tensor(
-                    1 - np.concatenate(decision_requests.action_mask, axis=1),
-                    device=device,
-                )
+                # np.concatenate -> paddle.to_tensor
+                mask_np = 1 - np.concatenate(decision_requests.action_mask, axis=1)
+                mask = paddle.to_tensor(mask_np, dtype='float32')
         return mask
 
     @timed
@@ -95,19 +94,22 @@ class TorchPolicy(Policy):
         """
         obs = decision_requests.obs
         masks = self._extract_masks(decision_requests)
-        device = default_device()
-        tensor_obs = [torch.as_tensor(np_ob, device=device) for np_ob in obs]
 
-        memories = torch.as_tensor(
-            self.retrieve_memories(global_agent_ids), device=device
+        # Create tensors on the active device
+        tensor_obs = [paddle.to_tensor(np_ob, dtype='float32') for np_ob in obs]
+
+        memories = paddle.to_tensor(
+            self.retrieve_memories(global_agent_ids), dtype='float32'
         ).unsqueeze(0)
-        with torch.no_grad():
+
+        with paddle.no_grad():
             action, run_out, memories = self.actor.get_action_and_stats(
                 tensor_obs, masks=masks, memories=memories
             )
+
         run_out["action"] = action.to_action_tuple()
         if "log_probs" in run_out:
-            run_out["log_probs"] = run_out["log_probs"].to_log_probs_tuple()
+             run_out["log_probs"] = run_out["log_probs"].to_log_probs_tuple()
         if "entropy" in run_out:
             run_out["entropy"] = ModelUtils.to_numpy(run_out["entropy"])
         if self.use_recurrent:
@@ -165,13 +167,14 @@ class TorchPolicy(Policy):
         self.global_step.increment(n_steps)
         return self.get_current_step()
 
-    def load_weights(self, values: List[np.ndarray]) -> None:
-        self.actor.load_state_dict(values)
+    def load_weights(self, values: Dict[str, Any]) -> None:
+        # torch uses load_state_dict, paddle uses set_state_dict
+        self.actor.set_state_dict(values)
 
     def init_load_weights(self) -> None:
         pass
 
-    def get_weights(self) -> List[np.ndarray]:
+    def get_weights(self) -> Dict[str, Any]:
         return copy.deepcopy(self.actor.state_dict())
 
     def get_modules(self):

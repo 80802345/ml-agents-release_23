@@ -1,20 +1,23 @@
 from typing import Callable, List, Dict, Tuple, Optional, Union, Any
 import abc
+import paddle
+import paddle.nn as nn
 
-from mlagents.torch_utils import torch, nn, default_device
-
+# 假设你已经将 mlagents_envs 和 mlagents.trainers 下的其他文件也进行了相应转换
 from mlagents_envs.base_env import ActionSpec, ObservationSpec, ObservationType
-from mlagents.trainers.torch_entities.action_model import ActionModel
-from mlagents.trainers.torch_entities.agent_action import AgentAction
+
+# 请确保以下依赖文件你也已经转换为了 Paddle 版本
+from mlagents.trainers.paddle_entities.action_model import ActionModel
+from mlagents.trainers.paddle_entities.agent_action import AgentAction
 from mlagents.trainers.settings import NetworkSettings, EncoderType, ConditioningType
-from mlagents.trainers.torch_entities.utils import ModelUtils
-from mlagents.trainers.torch_entities.decoders import ValueHeads
-from mlagents.trainers.torch_entities.layers import LSTM, LinearEncoder
-from mlagents.trainers.torch_entities.encoders import VectorInput
+from mlagents.trainers.paddle_entities.utils import ModelUtils
+from mlagents.trainers.paddle_entities.decoders import ValueHeads
+from mlagents.trainers.paddle_entities.layers import LSTM, LinearEncoder
+from mlagents.trainers.paddle_entities.encoders import VectorInput
 from mlagents.trainers.buffer import AgentBuffer
 from mlagents.trainers.trajectory import ObsUtil
-from mlagents.trainers.torch_entities.conditioning import ConditionalEncoder
-from mlagents.trainers.torch_entities.attention import (
+from mlagents.trainers.paddle_entities.conditioning import ConditionalEncoder
+from mlagents.trainers.paddle_entities.attention import (
     EntityEmbedding,
     ResidualSelfAttention,
     get_zero_entities_mask,
@@ -22,15 +25,15 @@ from mlagents.trainers.torch_entities.attention import (
 from mlagents.trainers.exception import UnityTrainerException
 
 
-ActivationFunction = Callable[[torch.Tensor], torch.Tensor]
+ActivationFunction = Callable[[paddle.Tensor], paddle.Tensor]
 EncoderFunction = Callable[
-    [torch.Tensor, int, ActivationFunction, int, str, bool], torch.Tensor
+    [paddle.Tensor, int, ActivationFunction, int, str, bool], paddle.Tensor
 ]
 
 EPSILON = 1e-7
 
 
-class ObservationEncoder(nn.Module):
+class ObservationEncoder(nn.Layer):
     ATTENTION_EMBEDDING_SIZE = 128  # The embedding size of attention is fixed
 
     def __init__(
@@ -45,6 +48,7 @@ class ObservationEncoder(nn.Module):
         Will use an RSA if needed for variable length observations.
         """
         super().__init__()
+        # ModelUtils 需要适配 Paddle 返回 Paddle 的 Layer
         self.processors, self.embedding_sizes = ModelUtils.create_input_processors(
             observation_specs,
             h_size,
@@ -87,8 +91,9 @@ class ObservationEncoder(nn.Module):
         obs = ObsUtil.from_buffer(buffer, len(self.processors))
         for vec_input, enc in zip(obs, self.processors):
             if isinstance(enc, VectorInput):
+                # Paddle 处理 tensor 转换
                 enc.update_normalization(
-                    torch.as_tensor(vec_input.to_ndarray(), device=default_device())
+                    paddle.to_tensor(vec_input.to_ndarray())
                 )
 
     def copy_normalization(self, other_encoder: "ObservationEncoder") -> None:
@@ -97,13 +102,18 @@ class ObservationEncoder(nn.Module):
                 if isinstance(n1, VectorInput) and isinstance(n2, VectorInput):
                     n1.copy_normalization(n2)
 
-    def forward(self, inputs: List[torch.Tensor]) -> torch.Tensor:
+    def forward(self, inputs: List[paddle.Tensor]) -> paddle.Tensor:
         """
         Encode observations using a list of processors and an RSA.
         :param inputs: List of Tensors corresponding to a set of obs.
         """
+        if isinstance(inputs, paddle.Tensor):
+            inputs = [inputs]
+        # ==================================================
+
+
         encodes = []
-        var_len_processor_inputs: List[Tuple[nn.Module, torch.Tensor]] = []
+        var_len_processor_inputs: List[Tuple[nn.Layer, paddle.Tensor]] = []
 
         for idx, processor in enumerate(self.processors):
             if not isinstance(processor, EntityEmbedding):
@@ -114,14 +124,14 @@ class ObservationEncoder(nn.Module):
             else:
                 var_len_processor_inputs.append((processor, inputs[idx]))
         if len(encodes) != 0:
-            encoded_self = torch.cat(encodes, dim=1)
+            encoded_self = paddle.concat(encodes, axis=1)
             input_exist = True
         else:
             input_exist = False
         if len(var_len_processor_inputs) > 0 and self.rsa is not None:
             # Some inputs need to be processed with a variable length encoder
             masks = get_zero_entities_mask([p_i[1] for p_i in var_len_processor_inputs])
-            embeddings: List[torch.Tensor] = []
+            embeddings: List[paddle.Tensor] = []
             processed_self = (
                 self.x_self_encoder(encoded_self)
                 if input_exist and self.x_self_encoder is not None
@@ -129,13 +139,13 @@ class ObservationEncoder(nn.Module):
             )
             for processor, var_len_input in var_len_processor_inputs:
                 embeddings.append(processor(processed_self, var_len_input))
-            qkv = torch.cat(embeddings, dim=1)
+            qkv = paddle.concat(embeddings, axis=1)
             attention_embedding = self.rsa(qkv, masks)
             if not input_exist:
-                encoded_self = torch.cat([attention_embedding], dim=1)
+                encoded_self = paddle.concat([attention_embedding], axis=1)
                 input_exist = True
             else:
-                encoded_self = torch.cat([encoded_self, attention_embedding], dim=1)
+                encoded_self = paddle.concat([encoded_self, attention_embedding], axis=1)
 
         if not input_exist:
             raise UnityTrainerException(
@@ -145,7 +155,7 @@ class ObservationEncoder(nn.Module):
 
         return encoded_self
 
-    def get_goal_encoding(self, inputs: List[torch.Tensor]) -> torch.Tensor:
+    def get_goal_encoding(self, inputs: List[paddle.Tensor]) -> paddle.Tensor:
         """
         Encode observations corresponding to goals using a list of processors.
         :param inputs: List of Tensors corresponding to a set of obs.
@@ -164,7 +174,7 @@ class ObservationEncoder(nn.Module):
                     "case is not supported."
                 )
         if len(encodes) != 0:
-            encoded = torch.cat(encodes, dim=1)
+            encoded = paddle.concat(encodes, axis=1)
         else:
             raise UnityTrainerException(
                 "Trainer was unable to process any of the goals provided as input."
@@ -172,7 +182,7 @@ class ObservationEncoder(nn.Module):
         return encoded
 
 
-class NetworkBody(nn.Module):
+class NetworkBody(nn.Layer):
     def __init__(
         self,
         observation_specs: List[ObservationSpec],
@@ -231,14 +241,14 @@ class NetworkBody(nn.Module):
 
     def forward(
         self,
-        inputs: List[torch.Tensor],
-        actions: Optional[torch.Tensor] = None,
-        memories: Optional[torch.Tensor] = None,
+        inputs: List[paddle.Tensor],
+        actions: Optional[paddle.Tensor] = None,
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[paddle.Tensor, paddle.Tensor]:
         encoded_self = self.observation_encoder(inputs)
         if actions is not None:
-            encoded_self = torch.cat([encoded_self, actions], dim=1)
+            encoded_self = paddle.concat([encoded_self, actions], axis=1)
         if isinstance(self._body_endoder, ConditionalEncoder):
             goal = self.observation_encoder.get_goal_encoding(inputs)
             encoding = self._body_endoder(encoded_self, goal)
@@ -253,7 +263,7 @@ class NetworkBody(nn.Module):
         return encoding, memories
 
 
-class MultiAgentNetworkBody(torch.nn.Module):
+class MultiAgentNetworkBody(nn.Layer):
     """
     A network body that uses a self attention layer to handle state
     and action input from a potentially variable number of agents that
@@ -313,9 +323,10 @@ class MultiAgentNetworkBody(torch.nn.Module):
             self.lstm = LSTM(self.h_size, self.m_size)
         else:
             self.lstm = None  # type: ignore
-        self._current_max_agents = torch.nn.Parameter(
-            torch.as_tensor(1), requires_grad=False
-        )
+        
+        # PyTorch 的 nn.Parameter(..., requires_grad=False) 对应 Paddle 的 register_buffer
+        self.register_buffer("_current_max_agents", paddle.to_tensor(1, dtype='float32'))
+
 
     @property
     def memory_size(self) -> int:
@@ -327,7 +338,7 @@ class MultiAgentNetworkBody(torch.nn.Module):
     def copy_normalization(self, other_network: "MultiAgentNetworkBody") -> None:
         self.observation_encoder.copy_normalization(other_network.observation_encoder)
 
-    def _get_masks_from_nans(self, obs_tensors: List[torch.Tensor]) -> torch.Tensor:
+    def _get_masks_from_nans(self, obs_tensors: List[paddle.Tensor]) -> paddle.Tensor:
         """
         Get attention masks by grabbing an arbitrary obs across all the agents
         Since these are raw obs, the padded values are still NaN
@@ -335,16 +346,16 @@ class MultiAgentNetworkBody(torch.nn.Module):
         only_first_obs = [_all_obs[0] for _all_obs in obs_tensors]
         # Just get the first element in each obs regardless of its dimension. This will speed up
         # searching for NaNs.
-        only_first_obs_flat = torch.stack(
-            [_obs.flatten(start_dim=1)[:, 0] for _obs in only_first_obs], dim=1
+        only_first_obs_flat = paddle.stack(
+            [_obs.flatten(start_axis=1)[:, 0] for _obs in only_first_obs], axis=1
         )
         # Get the mask from NaNs
-        attn_mask = only_first_obs_flat.isnan().float()
+        attn_mask = only_first_obs_flat.isnan().cast('float32')
         return attn_mask
 
     def _copy_and_remove_nans_from_obs(
-        self, all_obs: List[List[torch.Tensor]], attention_mask: torch.Tensor
-    ) -> List[List[torch.Tensor]]:
+        self, all_obs: List[List[paddle.Tensor]], attention_mask: paddle.Tensor
+    ) -> List[List[paddle.Tensor]]:
         """
         Helper function to remove NaNs from observations using an attention mask.
         """
@@ -353,30 +364,38 @@ class MultiAgentNetworkBody(torch.nn.Module):
             no_nan_obs = []
             for obs in single_agent_obs:
                 new_obs = obs.clone()
-                new_obs[attention_mask.bool()[:, i_agent], ::] = 0.0  # Remove NaNs fast
+                # Paddle 索引操作，将 NaN 替换为 0
+                # 注意：Paddle 的 Tensor 索引可能需要 boolean mask 配合
+                mask = attention_mask.cast('bool')[:, i_agent]
+                # 这里假设 mask 的维度和 obs 的 batch 维匹配
+                # 简单实现：使用 where
+                # 但这里是 In-place 修改，Paddle 2.x 支持基本索引
+                # 若需要严谨实现，建议 mask 扩充维度后相乘，或者用 where
+                # 下面尝试直接赋值（类似 Torch）
+                # new_obs[mask, ::] = 0.0 # 这种写法在 Paddle 某些版本可能不支持
+                
+                # 更稳健的写法：
+                if mask.any():
+                    # 这里逻辑比较复杂，为了保持与原代码逻辑一致，我们尽量用 mask 乘法替代
+                    # 将 mask 扩展到与 new_obs 相同维度
+                    expanded_mask = mask.unsqueeze([-1 for _ in range(new_obs.ndim - 1)])
+                    # 广播
+                    expanded_mask = paddle.expand(expanded_mask, new_obs.shape)
+                    new_obs = paddle.where(expanded_mask, paddle.zeros_like(new_obs), new_obs)
+
                 no_nan_obs.append(new_obs)
             obs_with_no_nans.append(no_nan_obs)
         return obs_with_no_nans
 
     def forward(
         self,
-        obs_only: List[List[torch.Tensor]],
-        obs: List[List[torch.Tensor]],
+        obs_only: List[List[paddle.Tensor]],
+        obs: List[List[paddle.Tensor]],
         actions: List[AgentAction],
-        memories: Optional[torch.Tensor] = None,
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Returns sampled actions.
-        If memory is enabled, return the memories as well.
-        :param obs_only: Observations to be processed that do not have corresponding actions.
-            These are encoded with the obs_encoder.
-        :param obs: Observations to be processed that do have corresponding actions.
-            After concatenation with actions, these are processed with obs_action_encoder.
-        :param actions: After concatenation with obs, these are processed with obs_action_encoder.
-        :param memories: If using memory, a Tensor of initial memories.
-        :param sequence_length: If using memory, the sequence length.
-        """
+    ) -> Tuple[paddle.Tensor, paddle.Tensor]:
+        
         self_attn_masks = []
         self_attn_inputs = []
         concat_f_inp = []
@@ -389,8 +408,8 @@ class MultiAgentNetworkBody(torch.nn.Module):
                     encoded,
                     action.to_flat(self.action_spec.discrete_branches),
                 ]
-                concat_f_inp.append(torch.cat(cat_encodes, dim=1))
-            f_inp = torch.stack(concat_f_inp, dim=1)
+                concat_f_inp.append(paddle.concat(cat_encodes, axis=1))
+            f_inp = paddle.stack(concat_f_inp, axis=1)
             self_attn_masks.append(obs_attn_mask)
             self_attn_inputs.append(self.obs_action_encoder(None, f_inp))
 
@@ -401,19 +420,20 @@ class MultiAgentNetworkBody(torch.nn.Module):
             for inputs in obs_only:
                 encoded = self.observation_encoder(inputs)
                 concat_encoded_obs.append(encoded)
-            g_inp = torch.stack(concat_encoded_obs, dim=1)
+            g_inp = paddle.stack(concat_encoded_obs, axis=1)
             self_attn_masks.append(obs_only_attn_mask)
             self_attn_inputs.append(self.obs_encoder(None, g_inp))
 
-        encoded_entity = torch.cat(self_attn_inputs, dim=1)
+        encoded_entity = paddle.concat(self_attn_inputs, axis=1)
         encoded_state = self.self_attn(encoded_entity, self_attn_masks)
 
-        flipped_masks = 1 - torch.cat(self_attn_masks, dim=1)
-        num_agents = torch.sum(flipped_masks, dim=1, keepdim=True)
-        if torch.max(num_agents).item() > self._current_max_agents:
-            self._current_max_agents = torch.nn.Parameter(
-                torch.as_tensor(torch.max(num_agents).item()), requires_grad=False
-            )
+        flipped_masks = 1 - paddle.concat(self_attn_masks, axis=1)
+        num_agents = paddle.sum(flipped_masks, axis=1, keepdim=True)
+        
+        current_max = paddle.max(num_agents)
+        if current_max.item() > self._current_max_agents.item():
+             # 更新 buffer
+             paddle.assign(current_max, self._current_max_agents)
 
         # num_agents will be -1 for a single agent and +1 when the current maximum is reached
         num_agents = num_agents * 2.0 / self._current_max_agents - 1
@@ -424,35 +444,25 @@ class MultiAgentNetworkBody(torch.nn.Module):
             encoding = encoding.reshape([-1, sequence_length, self.h_size])
             encoding, memories = self.lstm(encoding, memories)
             encoding = encoding.reshape([-1, self.m_size // 2])
-        encoding = torch.cat([encoding, num_agents], dim=1)
+        encoding = paddle.concat([encoding, num_agents], axis=1)
         return encoding, memories
 
 
 class Critic(abc.ABC):
     @abc.abstractmethod
     def update_normalization(self, buffer: AgentBuffer) -> None:
-        """
-        Updates normalization of Actor based on the provided List of vector obs.
-        :param vector_obs: A List of vector obs as tensors.
-        """
         pass
 
     def critic_pass(
         self,
-        inputs: List[torch.Tensor],
-        memories: Optional[torch.Tensor] = None,
+        inputs: List[paddle.Tensor],
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
-    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
-        """
-        Get value outputs for the given obs.
-        :param inputs: List of inputs as tensors.
-        :param memories: Tensor of memories, if using memory. Otherwise, None.
-        :returns: Dict of reward stream to output tensor for values.
-        """
+    ) -> Tuple[Dict[str, paddle.Tensor], paddle.Tensor]:
         pass
 
 
-class ValueNetwork(nn.Module, Critic):
+class ValueNetwork(nn.Layer, Critic):
     def __init__(
         self,
         stream_names: List[str],
@@ -462,8 +472,8 @@ class ValueNetwork(nn.Module, Critic):
         outputs_per_stream: int = 1,
     ):
 
-        # This is not a typo, we want to call __init__ of nn.Module
-        nn.Module.__init__(self)
+        # This is not a typo, we want to call __init__ of nn.Layer
+        nn.Layer.__init__(self)
         self.network_body = NetworkBody(
             observation_specs, network_settings, encoded_act_size=encoded_act_size
         )
@@ -482,10 +492,10 @@ class ValueNetwork(nn.Module, Critic):
 
     def critic_pass(
         self,
-        inputs: List[torch.Tensor],
-        memories: Optional[torch.Tensor] = None,
+        inputs: List[paddle.Tensor],
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
-    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
+    ) -> Tuple[Dict[str, paddle.Tensor], paddle.Tensor]:
         value_outputs, critic_mem_out = self.forward(
             inputs, memories=memories, sequence_length=sequence_length
         )
@@ -493,11 +503,11 @@ class ValueNetwork(nn.Module, Critic):
 
     def forward(
         self,
-        inputs: List[torch.Tensor],
-        actions: Optional[torch.Tensor] = None,
-        memories: Optional[torch.Tensor] = None,
+        inputs: List[paddle.Tensor],
+        actions: Optional[paddle.Tensor] = None,
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
-    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
+    ) -> Tuple[Dict[str, paddle.Tensor], paddle.Tensor]:
         encoding, memories = self.network_body(
             inputs, actions, memories, sequence_length
         )
@@ -508,69 +518,38 @@ class ValueNetwork(nn.Module, Critic):
 class Actor(abc.ABC):
     @abc.abstractmethod
     def update_normalization(self, buffer: AgentBuffer) -> None:
-        """
-        Updates normalization of Actor based on the provided List of vector obs.
-        :param vector_obs: A List of vector obs as tensors.
-        """
         pass
 
     def get_action_and_stats(
         self,
-        inputs: List[torch.Tensor],
-        masks: Optional[torch.Tensor] = None,
-        memories: Optional[torch.Tensor] = None,
+        inputs: List[paddle.Tensor],
+        masks: Optional[paddle.Tensor] = None,
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
-    ) -> Tuple[AgentAction, Dict[str, Any], torch.Tensor]:
-        """
-        Returns sampled actions.
-        If memory is enabled, return the memories as well.
-        :param inputs: A List of inputs as tensors.
-        :param masks: If using discrete actions, a Tensor of action masks.
-        :param memories: If using memory, a Tensor of initial memories.
-        :param sequence_length: If using memory, the sequence length.
-        :return: A Tuple of AgentAction, ActionLogProbs, entropies, and memories.
-            Memories will be None if not using memory.
-        """
+    ) -> Tuple[AgentAction, Dict[str, Any], paddle.Tensor]:
         pass
 
     def get_stats(
         self,
-        inputs: List[torch.Tensor],
+        inputs: List[paddle.Tensor],
         actions: AgentAction,
-        masks: Optional[torch.Tensor] = None,
-        memories: Optional[torch.Tensor] = None,
+        masks: Optional[paddle.Tensor] = None,
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
     ) -> Dict[str, Any]:
-        """
-        Returns log_probs for actions and entropies.
-        If memory is enabled, return the memories as well.
-        :param inputs: A List of inputs as tensors.
-        :param actions: AgentAction of actions.
-        :param masks: If using discrete actions, a Tensor of action masks.
-        :param memories: If using memory, a Tensor of initial memories.
-        :param sequence_length: If using memory, the sequence length.
-        :return: A Tuple of AgentAction, ActionLogProbs, entropies, and memories.
-            Memories will be None if not using memory.
-        """
-
         pass
 
     @abc.abstractmethod
     def forward(
         self,
-        inputs: List[torch.Tensor],
-        masks: Optional[torch.Tensor] = None,
-        memories: Optional[torch.Tensor] = None,
-    ) -> Tuple[Union[int, torch.Tensor], ...]:
-        """
-        Forward pass of the Actor for inference. This is required for export to ONNX, and
-        the inputs and outputs of this method should not be changed without a respective change
-        in the ONNX export code.
-        """
+        inputs: List[paddle.Tensor],
+        masks: Optional[paddle.Tensor] = None,
+        memories: Optional[paddle.Tensor] = None,
+    ) -> Tuple[Union[int, paddle.Tensor], ...]:
         pass
 
 
-class SimpleActor(nn.Module, Actor):
+class SimpleActor(nn.Layer, Actor):
     MODEL_EXPORT_VERSION = 3  # Corresponds to ModelApiVersion.MLAgents2_0
 
     def __init__(
@@ -583,34 +562,44 @@ class SimpleActor(nn.Module, Actor):
     ):
         super().__init__()
         self.action_spec = action_spec
-        self.version_number = torch.nn.Parameter(
-            torch.Tensor([self.MODEL_EXPORT_VERSION]), requires_grad=False
+        
+        # 在 Paddle 中，对应 requires_grad=False 的 Parameter，通常使用 register_buffer
+        # 这样它们会包含在 state_dict 中，但不会被优化器更新
+        self.register_buffer(
+            "version_number", 
+            paddle.to_tensor([self.MODEL_EXPORT_VERSION], dtype='float32')
         )
-        self.is_continuous_int_deprecated = torch.nn.Parameter(
-            torch.Tensor([int(self.action_spec.is_continuous())]), requires_grad=False
+        self.register_buffer(
+            "is_continuous_int_deprecated",
+            paddle.to_tensor([int(self.action_spec.is_continuous())], dtype='float32')
         )
-        self.continuous_act_size_vector = torch.nn.Parameter(
-            torch.Tensor([int(self.action_spec.continuous_size)]), requires_grad=False
+        self.register_buffer(
+            "continuous_act_size_vector",
+            paddle.to_tensor([int(self.action_spec.continuous_size)], dtype='float32')
         )
-        self.discrete_act_size_vector = torch.nn.Parameter(
-            torch.Tensor([self.action_spec.discrete_branches]), requires_grad=False
+        self.register_buffer(
+            "discrete_act_size_vector",
+            paddle.to_tensor([self.action_spec.discrete_branches], dtype='float32')
         )
-        self.act_size_vector_deprecated = torch.nn.Parameter(
-            torch.Tensor(
+        self.register_buffer(
+            "act_size_vector_deprecated",
+            paddle.to_tensor(
                 [
                     self.action_spec.continuous_size
                     + sum(self.action_spec.discrete_branches)
-                ]
-            ),
-            requires_grad=False,
+                ], dtype='float32'
+            )
         )
+        
         self.network_body = NetworkBody(observation_specs, network_settings)
         if network_settings.memory is not None:
             self.encoding_size = network_settings.memory.memory_size // 2
         else:
             self.encoding_size = network_settings.hidden_units
-        self.memory_size_vector = torch.nn.Parameter(
-            torch.Tensor([int(self.network_body.memory_size)]), requires_grad=False
+            
+        self.register_buffer(
+            "memory_size_vector",
+            paddle.to_tensor([int(self.network_body.memory_size)], dtype='float32')
         )
 
         self.action_model = ActionModel(
@@ -630,11 +619,11 @@ class SimpleActor(nn.Module, Actor):
 
     def get_action_and_stats(
         self,
-        inputs: List[torch.Tensor],
-        masks: Optional[torch.Tensor] = None,
-        memories: Optional[torch.Tensor] = None,
+        inputs: List[paddle.Tensor],
+        masks: Optional[paddle.Tensor] = None,
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
-    ) -> Tuple[AgentAction, Dict[str, Any], torch.Tensor]:
+    ) -> Tuple[AgentAction, Dict[str, Any], paddle.Tensor]:
 
         encoding, memories = self.network_body(
             inputs, memories=memories, sequence_length=sequence_length
@@ -653,10 +642,10 @@ class SimpleActor(nn.Module, Actor):
 
     def get_stats(
         self,
-        inputs: List[torch.Tensor],
+        inputs: List[paddle.Tensor],
         actions: AgentAction,
-        masks: Optional[torch.Tensor] = None,
-        memories: Optional[torch.Tensor] = None,
+        masks: Optional[paddle.Tensor] = None,
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
     ) -> Dict[str, Any]:
         encoding, actor_mem_outs = self.network_body(
@@ -671,15 +660,12 @@ class SimpleActor(nn.Module, Actor):
 
     def forward(
         self,
-        inputs: List[torch.Tensor],
-        masks: Optional[torch.Tensor] = None,
-        memories: Optional[torch.Tensor] = None,
-    ) -> Tuple[Union[int, torch.Tensor], ...]:
+        inputs: List[paddle.Tensor],
+        masks: Optional[paddle.Tensor] = None,
+        memories: Optional[paddle.Tensor] = None,
+    ) -> Tuple[Union[int, paddle.Tensor], ...]:
         """
         Note: This forward() method is required for exporting to ONNX. Don't modify the inputs and outputs.
-
-        At this moment, torch.onnx.export() doesn't accept None as tensor to be exported,
-        so the size of return tuple varies with action spec.
         """
         encoding, memories_out = self.network_body(
             inputs, memories=memories, sequence_length=1
@@ -692,6 +678,7 @@ class SimpleActor(nn.Module, Actor):
             deterministic_cont_action_out,
             deterministic_disc_action_out,
         ) = self.action_model.get_action_out(encoding, masks)
+        
         export_out = [self.version_number, self.memory_size_vector]
         if self.action_spec.continuous_size > 0:
             export_out += [
@@ -733,21 +720,22 @@ class SharedActorCritic(SimpleActor, Critic):
 
     def critic_pass(
         self,
-        inputs: List[torch.Tensor],
-        memories: Optional[torch.Tensor] = None,
+        inputs: List[paddle.Tensor],
+        memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
-    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
+    ) -> Tuple[Dict[str, paddle.Tensor], paddle.Tensor]:
         encoding, memories_out = self.network_body(
             inputs, memories=memories, sequence_length=sequence_length
         )
         return self.value_heads(encoding), memories_out
 
 
-class GlobalSteps(nn.Module):
+class GlobalSteps(nn.Layer):
     def __init__(self):
         super().__init__()
-        self.__global_step = nn.Parameter(
-            torch.Tensor([0]).to(torch.int64), requires_grad=False
+        self.register_buffer(
+            "_GlobalSteps__global_step",
+            paddle.to_tensor([0], dtype='int64')
         )
 
     @property
@@ -756,14 +744,18 @@ class GlobalSteps(nn.Module):
 
     @current_step.setter
     def current_step(self, value):
+        # In-place update
         self.__global_step[:] = value
 
     def increment(self, value):
         self.__global_step += value
 
 
-class LearningRate(nn.Module):
+class LearningRate(nn.Layer):
     def __init__(self, lr):
         # Todo: add learning rate decay
         super().__init__()
-        self.learning_rate = torch.Tensor([lr])
+        self.register_buffer(
+            "learning_rate",
+            paddle.to_tensor([lr], dtype='float32')
+        )

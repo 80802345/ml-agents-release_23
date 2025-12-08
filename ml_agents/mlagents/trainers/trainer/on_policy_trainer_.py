@@ -11,8 +11,7 @@ from mlagents_envs.logging_util import get_logger
 from mlagents.trainers.buffer import BufferKey
 from mlagents.trainers.trainer.rl_trainer import RLTrainer
 from mlagents.trainers.policy import Policy
-# 确保引用的是 Paddle 版本的优化器基类
-from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
+from mlagents.trainers.optimizer.torch_optimizer import TorchOptimizer
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.settings import TrainerSettings, OnPolicyHyperparamSettings
 
@@ -55,7 +54,7 @@ class OnPolicyTrainer(RLTrainer):
         )
         self.seed = seed
         self.policy: Policy = None  # type: ignore
-        self.optimizer: PaddleOptimizer = None  # type: ignore
+        self.optimizer: TorchOptimizer = None  # type: ignore
 
     def _is_ready_update(self):
         """
@@ -89,20 +88,17 @@ class OnPolicyTrainer(RLTrainer):
         advantages = np.array(
             self.update_buffer[BufferKey.ADVANTAGES].get_batch(), dtype=np.float32
         )
-        # Advantage Normalization (NumPy based, no framework change needed)
         self.update_buffer[BufferKey.ADVANTAGES].set(
             (advantages - advantages.mean()) / (advantages.std() + 1e-10)
         )
         num_epoch = self.hyperparameters.num_epoch
         batch_update_stats = defaultdict(list)
-        
         for _ in range(num_epoch):
             self.update_buffer.shuffle(sequence_length=self.policy.sequence_length)
             buffer = self.update_buffer
             max_num_batch = buffer_length // batch_size
             for i in range(0, max_num_batch * batch_size, batch_size):
                 minibatch = buffer.make_mini_batch(i, i + batch_size)
-                # update() calls into PaddleOptimizer logic
                 update_stats = self.optimizer.update(minibatch, n_sequences)
                 update_stats.update(self.optimizer.update_reward_signals(minibatch))
                 for stat_name, value in update_stats.items():
@@ -136,8 +132,6 @@ class OnPolicyTrainer(RLTrainer):
         self.policy = policy
         self.policies[parsed_behavior_id.behavior_id] = policy
 
-        # This will call create_optimizer() in the subclass (e.g. PPOTrainer)
-        # Ensure your PPOTrainer returns a PaddleOptimizer
         self.optimizer = self.create_optimizer()
         for _reward_signal in self.optimizer.reward_signals.keys():
             self.collected_rewards[_reward_signal] = defaultdict(lambda: 0)

@@ -14,25 +14,14 @@ from mlagents.trainers.policy.checkpoint_manager import (
 from mlagents_envs.logging_util import get_logger
 from mlagents_envs.timers import timed
 from mlagents.trainers.optimizer import Optimizer
-
-# Ensure you import the Paddle version of the optimizer
-from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
-
+from mlagents.trainers.optimizer.torch_optimizer import TorchOptimizer
 from mlagents.trainers.buffer import AgentBuffer, BufferKey
 from mlagents.trainers.trainer import Trainer
-# Ensure you import the Paddle entities version
-from mlagents.trainers.paddle_entities.components.reward_providers.base_reward_provider import (
+from mlagents.trainers.torch_entities.components.reward_providers.base_reward_provider import (
     BaseRewardProvider,
 )
 from mlagents_envs.timers import hierarchical_timer
-
-# Assuming you have a PaddleModelSaver, otherwise you need to convert TorchModelSaver
-try:
-    from mlagents.trainers.model_saver.paddle_model_saver import PaddleModelSaver
-except ImportError:
-    # Placeholder if not yet converted, logic will fail at runtime if not implemented
-    PaddleModelSaver = None 
-
+from mlagents.trainers.model_saver.torch_model_saver import TorchModelSaver
 from mlagents.trainers.agent_processor import AgentManagerQueue
 from mlagents.trainers.trajectory import Trajectory
 from mlagents.trainers.settings import TrainerSettings
@@ -119,7 +108,7 @@ class RLTrainer(Trainer):
         return False
 
     @abc.abstractmethod
-    def create_optimizer(self) -> PaddleOptimizer:
+    def create_optimizer(self) -> TorchOptimizer:
         """
         Creates an Optimizer object
         """
@@ -129,11 +118,7 @@ class RLTrainer(Trainer):
     def create_model_saver(
         trainer_settings: TrainerSettings, model_path: str, load: bool
     ) -> BaseModelSaver:
-        # Use PaddleModelSaver here
-        if PaddleModelSaver is None:
-             raise NotImplementedError("PaddleModelSaver has not been implemented or imported yet.")
-             
-        model_saver = PaddleModelSaver(  # type: ignore
+        model_saver = TorchModelSaver(  # type: ignore
             trainer_settings, model_path, load
         )
         return model_saver

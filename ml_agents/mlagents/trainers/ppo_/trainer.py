@@ -9,21 +9,17 @@ import numpy as np
 from mlagents_envs.base_env import BehaviorSpec
 from mlagents_envs.logging_util import get_logger
 from mlagents.trainers.buffer import BufferKey, RewardSignalUtil
-# 确保引用的是 Paddle 版本
 from mlagents.trainers.trainer.on_policy_trainer import OnPolicyTrainer
 from mlagents.trainers.policy.policy import Policy
 from mlagents.trainers.trainer.trainer_utils import get_gae
-
-# 引用 Paddle 版本的优化器和策略
-from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
-from mlagents.trainers.policy.paddle_policy import PaddlePolicy
-from mlagents.trainers.ppo.optimizer_paddle import PaddlePPOOptimizer, PPOSettings
+from mlagents.trainers.optimizer.torch_optimizer import TorchOptimizer
+from mlagents.trainers.policy.torch_policy import TorchPolicy
+from mlagents.trainers.ppo.optimizer_torch import TorchPPOOptimizer, PPOSettings
 from mlagents.trainers.trajectory import Trajectory
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.settings import TrainerSettings
 
-# 引用 Paddle 版本的网络定义
-from mlagents.trainers.paddle_entities.networks import SimpleActor, SharedActorCritic
+from mlagents.trainers.torch_entities.networks import SimpleActor, SharedActorCritic
 
 logger = get_logger(__name__)
 
@@ -31,7 +27,7 @@ TRAINER_NAME = "ppo"
 
 
 class PPOTrainer(OnPolicyTrainer):
-    """The PaddlePPOTrainer is an implementation of the PPO algorithm using PaddlePaddle."""
+    """The PPOTrainer is an implementation of the PPO algorithm."""
 
     def __init__(
         self,
@@ -67,7 +63,7 @@ class PPOTrainer(OnPolicyTrainer):
         )
         self.seed = seed
         self.shared_critic = self.hyperparameters.shared_critic
-        self.policy: PaddlePolicy = None  # type: ignore
+        self.policy: TorchPolicy = None  # type: ignore
 
     def _process_trajectory(self, trajectory: Trajectory) -> None:
         """
@@ -75,11 +71,11 @@ class PPOTrainer(OnPolicyTrainer):
         Processing involves calculating value and advantage targets for model updating step.
         :param trajectory: The Trajectory tuple containing the steps to be processed.
         """
-        # 调用基类处理（主要是统计）
         super()._process_trajectory(trajectory)
-        agent_id = trajectory.agent_id
+        agent_id = trajectory.agent_id  # All the agents should have the same ID
 
         agent_buffer_trajectory = trajectory.to_agentbuffer()
+        # Check if we used group rewards, warn if so.
         self._warn_if_group_reward(agent_buffer_trajectory)
 
         # Update the normalization
@@ -88,7 +84,6 @@ class PPOTrainer(OnPolicyTrainer):
             self.optimizer.critic.update_normalization(agent_buffer_trajectory)
 
         # Get all value estimates
-        # Note: optimizer.get_trajectory_value_estimates returns NumPy arrays in our Paddle conversion
         (
             value_estimates,
             value_next,
@@ -121,9 +116,10 @@ class PPOTrainer(OnPolicyTrainer):
             agent_buffer_trajectory[RewardSignalUtil.rewards_key(name)].extend(
                 evaluate_result
             )
+            # Report the reward signals
             self.collected_rewards[name][agent_id] += np.sum(evaluate_result)
 
-        # Compute GAE and returns (Standard Logic, Framework Agnostic via NumPy)
+        # Compute GAE and returns
         tmp_advantages = []
         tmp_returns = []
         for name in self.optimizer.reward_signals:
@@ -144,7 +140,7 @@ class PPOTrainer(OnPolicyTrainer):
                 lambd=self.hyperparameters.lambd,
             )
             local_return = local_advantage + local_value_estimates
-            
+            # This is later use as target for the different value estimates
             agent_buffer_trajectory[RewardSignalUtil.returns_key(name)].set(
                 local_return
             )
@@ -164,20 +160,20 @@ class PPOTrainer(OnPolicyTrainer):
 
         self._append_to_update_buffer(agent_buffer_trajectory)
 
+        # If this was a terminal trajectory, append stats and reset reward collection
         if trajectory.done_reached:
             self._update_end_episode_stats(agent_id, self.optimizer)
 
-    def create_optimizer(self) -> PaddleOptimizer:
-        # 实例化 Paddle 版本的 PPO 优化器
-        return PaddlePPOOptimizer(  # type: ignore
-            cast(PaddlePolicy, self.policy), self.trainer_settings  # type: ignore
+    def create_optimizer(self) -> TorchOptimizer:
+        return TorchPPOOptimizer(  # type: ignore
+            cast(TorchPolicy, self.policy), self.trainer_settings  # type: ignore
         )  # type: ignore
 
     def create_policy(
         self, parsed_behavior_id: BehaviorIdentifiers, behavior_spec: BehaviorSpec
-    ) -> PaddlePolicy:
+    ) -> TorchPolicy:
         """
-        Creates a policy with a PaddlePaddle backend and PPO hyperparameters
+        Creates a policy with a PyTorch backend and PPO hyperparameters
         :param parsed_behavior_id:
         :param behavior_spec: specifications for policy construction
         :return policy
@@ -192,11 +188,10 @@ class PPOTrainer(OnPolicyTrainer):
             reward_signal_names = [
                 key.value for key, _ in reward_signal_configs.items()
             ]
-            # 使用 Paddle 版本的 SharedActorCritic
             actor_cls = SharedActorCritic
             actor_kwargs.update({"stream_names": reward_signal_names})
 
-        policy = PaddlePolicy(
+        policy = TorchPolicy(
             self.seed,
             behavior_spec,
             self.trainer_settings.network_settings,
@@ -210,6 +205,7 @@ class PPOTrainer(OnPolicyTrainer):
         Gets policy from trainer associated with name_behavior_id
         :param name_behavior_id: full identifier of policy
         """
+
         return self.policy
 
     @staticmethod

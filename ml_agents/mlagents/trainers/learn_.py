@@ -1,5 +1,5 @@
 # # Unity ML-Agents Toolkit
-from mlagents import paddle_utils
+from mlagents import torch_utils
 import yaml
 
 import os
@@ -45,7 +45,7 @@ def get_version_string() -> str:
   ml-agents: {mlagents.trainers.__version__},
   ml-agents-envs: {mlagents_envs.__version__},
   Communicator API: {UnityEnvironment.API_VERSION},
-  PaddlePaddle: {paddle_utils.paddle.__version__}"""
+  PyTorch: {torch_utils.torch.__version__}"""
 
 
 def parse_command_line(
@@ -64,15 +64,7 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
     :param options: parsed command line arguments
     """
     with hierarchical_timer("run_training.setup"):
-        # Configure Paddle global settings (device, seed, etc.)
-        # Assuming set_paddle_config exists in your paddle_utils, otherwise use paddle.set_device
-        if hasattr(paddle_utils, 'set_paddle_config'):
-             paddle_utils.set_paddle_config(options.torch_settings) # keeping name for compatibility with settings object
-        else:
-             # Basic fallback if utility function missing
-             device = options.torch_settings.device if options.torch_settings.device else "cpu"
-             paddle_utils.paddle.set_device(device)
-             
+        torch_utils.set_torch_config(options.torch_settings)
         checkpoint_settings = options.checkpoint_settings
         env_settings = options.env_settings
         engine_settings = options.engine_settings
@@ -220,14 +212,14 @@ def run_cli(options: RunOptions) -> None:
             ┐  ╖
         ╓╖╬│╡  ││╬╖╖
     ╓╖╬│││││┘  ╬│││││╬╖
- ╖╬│││││╬╜        ╙╬│││││╖╖                                     ╗╗╗
- ╬╬╬╬╖││╦╖        ╖╬││╗╣╣╣╬      ╟╣╣╬    ╟╣╣╣            ╜╜╜  ╟╣╣
+ ╖╬│││││╬╜        ╙╬│││││╖╖                               ╗╗╗
+ ╬╬╬╬╖││╦╖        ╖╬││╗╣╣╣╬      ╟╣╣╬    ╟╣╣╣             ╜╜╜  ╟╣╣
  ╬╬╬╬╬╬╬╬╖│╬╖╖╓╬╪│╓╣╣╣╣╣╣╣╬      ╟╣╣╬    ╟╣╣╣ ╒╣╣╖╗╣╣╣╗   ╣╣╣ ╣╣╣╣╣╣ ╟╣╣╖   ╣╣╣
  ╬╬╬╬┐  ╙╬╬╬╬│╓╣╣╣╝╜  ╫╣╣╣╬      ╟╣╣╬    ╟╣╣╣ ╟╣╣╣╙ ╙╣╣╣  ╣╣╣ ╙╟╣╣╜╙  ╫╣╣  ╟╣╣
- ╬╬╬╬┐    ╙╬╬╣╣      ╫╣╣╣╬      ╟╣╣╬    ╟╣╣╣ ╟╣╣╬   ╣╣╣  ╣╣╣  ╟╣╣     ╣╣╣┌╣╣╜
+ ╬╬╬╬┐     ╙╬╬╣╣      ╫╣╣╣╬      ╟╣╣╬    ╟╣╣╣ ╟╣╣╬   ╣╣╣  ╣╣╣  ╟╣╣     ╣╣╣┌╣╣╜
  ╬╬╬╜       ╬╬╣╣      ╙╝╣╣╬      ╙╣╣╣╗╖╓╗╣╣╣╜ ╟╣╣╬   ╣╣╣  ╣╣╣  ╟╣╣╦╓    ╣╣╣╣╣
- ╙   ╓╦╖    ╬╬╣╣   ╓╗╗╖            ╙╝╣╣╣╣╝╜   ╘╝╝╜   ╝╝╝  ╝╝╝  ╙╣╣╣    ╟╣╣╣
-   ╩╬╬╬╬╬╬╦╦╬╬╣╣╗╣╣╣╣╣╣╣╝                                     ╫╣╣╣╣
+ ╙   ╓╦╖    ╬╬╣╣   ╓╗╗╖            ╙╝╣╣╣╣╝╜   ╘╝╝╜   ╝╝╝  ╝╝╝   ╙╣╣╣    ╟╣╣╣
+   ╩╬╬╬╬╬╬╦╦╬╬╣╣╗╣╣╣╣╣╣╣╝                                             ╫╣╣╣╣
       ╙╬╬╬╬╬╬╬╣╣╣╣╣╣╝╜
           ╙╬╬╬╣╣╣╜
              ╙
@@ -265,7 +257,7 @@ def run_cli(options: RunOptions) -> None:
     add_timer_metadata("mlagents_version", mlagents.trainers.__version__)
     add_timer_metadata("mlagents_envs_version", mlagents_envs.__version__)
     add_timer_metadata("communication_protocol_version", UnityEnvironment.API_VERSION)
-    add_timer_metadata("paddle_version", paddle_utils.paddle.__version__)
+    add_timer_metadata("pytorch_version", torch_utils.torch.__version__)
     add_timer_metadata("numpy_version", np.__version__)
 
     if options.env_settings.seed == -1:

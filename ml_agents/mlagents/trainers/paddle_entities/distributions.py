@@ -1,0 +1,280 @@
+import abc
+from typing import List
+import numpy as np
+import math
+import paddle
+import paddle.nn as nn
+import paddle.distribution as p_dist
+
+# 假设你已经将 layers.py 转换为了 paddle 版本
+from mlagents.trainers.paddle_entities.layers import linear_layer, Initialization
+
+EPSILON = 1e-7  # Small value to avoid divide by zero
+
+
+class DistInstance(nn.Layer, abc.ABC):
+    @abc.abstractmethod
+    def sample(self) -> paddle.Tensor:
+        """
+        Return a sample from this distribution.
+        """
+        pass
+
+    @abc.abstractmethod
+    def deterministic_sample(self) -> paddle.Tensor:
+        """
+        Return the most probable sample from this distribution.
+        """
+        pass
+
+    @abc.abstractmethod
+    def log_prob(self, value: paddle.Tensor) -> paddle.Tensor:
+        """
+        Returns the log probabilities of a particular value.
+        :param value: A value sampled from the distribution.
+        :returns: Log probabilities of the given value.
+        """
+        pass
+
+    @abc.abstractmethod
+    def entropy(self) -> paddle.Tensor:
+        """
+        Returns the entropy of this distribution.
+        """
+        pass
+
+    @abc.abstractmethod
+    def exported_model_output(self) -> paddle.Tensor:
+        """
+        Returns the tensor to be exported to ONNX for the distribution
+        """
+        pass
+
+
+class DiscreteDistInstance(DistInstance):
+    @abc.abstractmethod
+    def all_log_prob(self) -> paddle.Tensor:
+        """
+        Returns the log probabilities of all actions represented by this distribution.
+        """
+        pass
+
+
+class GaussianDistInstance(DistInstance):
+    def __init__(self, mean, std):
+        super().__init__()
+        self.mean = mean
+        self.std = std
+
+    def sample(self):
+        # paddle.randn_like 在某些版本可能不支持 complex types 或特定 inputs，
+        # 使用 paddle.randn 配合 shape 更稳健，或者直接 use randn_like 如果版本 >= 2.0
+        sample = self.mean + paddle.randn(self.mean.shape) * self.std
+        return sample
+
+    def deterministic_sample(self):
+        return self.mean
+
+    def log_prob(self, value):
+        var = self.std**2
+        log_scale = paddle.log(self.std + EPSILON)
+        return (
+            -((value - self.mean) ** 2) / (2 * var + EPSILON)
+            - log_scale
+            - math.log(math.sqrt(2 * math.pi))
+        )
+
+    def pdf(self, value):
+        log_prob = self.log_prob(value)
+        return paddle.exp(log_prob)
+
+    def entropy(self):
+        return paddle.mean(
+            0.5 * paddle.log(2 * math.pi * math.e * self.std**2 + EPSILON),
+            axis=1,
+            keepdim=True,
+        )  # Use equivalent behavior to TF
+
+    def exported_model_output(self):
+        return self.sample()
+
+
+class TanhGaussianDistInstance(GaussianDistInstance):
+    def __init__(self, mean, std):
+        super().__init__(mean, std)
+        # Paddle 的 Transform API 略有不同，这里初始化
+        self.transform = p_dist.TanhTransform()
+
+    def sample(self):
+        unsquashed_sample = super().sample()
+        # PyTorch: self.transform(x) -> Paddle: self.transform.forward(x)
+        squashed = self.transform.forward(unsquashed_sample)
+        return squashed
+
+    def _inverse_tanh(self, value):
+        capped_value = paddle.clip(value, -1 + EPSILON, 1 - EPSILON)
+        return 0.5 * paddle.log((1 + capped_value) / (1 - capped_value) + EPSILON)
+
+    def log_prob(self, value):
+        # PyTorch: self.transform.inv(x) -> Paddle: self.transform.inverse(x)
+        unsquashed = self.transform.inverse(value)
+
+        # PyTorch: transform.log_abs_det_jacobian(x, y)
+        # Paddle: transform.forward_log_det_jacobian(x) (只需要 x，通常结果一样)
+        # 注意: PyTorch 的实现这里减去了 log_det，公式是 p(y) = p(x) / |det| -> log p(y) = log p(x) - log |det|
+        log_det = self.transform.forward_log_det_jacobian(unsquashed)
+
+        return super().log_prob(unsquashed) - log_det
+
+
+class CategoricalDistInstance(DiscreteDistInstance):
+    def __init__(self, logits):
+        super().__init__()
+        self.logits = logits
+        # axis=-1 is default
+        self.probs = paddle.nn.functional.softmax(self.logits, axis=-1)
+
+    def sample(self):
+        return paddle.multinomial(self.probs, num_samples=1)
+
+    def deterministic_sample(self):
+        return paddle.argmax(self.probs, axis=1, keepdim=True)
+
+    def pdf(self, value):
+        # 原代码使用了复杂的 gather/permute 逻辑来避开 ONNX 问题。
+        # 在 Paddle 中，最接近 torch.gather(..., dim=-1) 的是 paddle.take_along_axis
+        # value shape: [batch, 1], self.probs shape: [batch, num_actions]
+        # 我们想取出每个 batch 中对应 index 的概率
+
+        # 确保 value 是 int64 类型用于索引
+
+        idx=paddle.arange(start=0,end=len(value),dtype=paddle.int64).unsqueeze(-1)
+        #idx = value.cast('int64').unsqueeze(-1) #拓展一维度
+        # probs = paddle.take_along_axis(self.probs, indices=idx, axis=-1)
+        # return probs.squeeze(-1)
+
+        probs_perm = self.probs.transpose((1, 0))  # 替代permute(1,0)
+        # 步骤2.2：value展平+转int64（Paddle索引必须为int64）
+        value_flat = value.flatten().cast('int64')
+        # 步骤2.3：按value筛选行（Paddle张量索引逻辑与PyTorch一致）
+        probs_selected = probs_perm[value_flat]
+
+        # 3. 沿最后一维取值：等价于torch.gather(..., -1, idx)
+        probs_gathered = paddle.take_along_axis(probs_selected, indices=idx, axis=-1)
+
+        # 4. 挤压最后一维：等价于squeeze(-1)
+        result = probs_gathered.squeeze(-1)
+        return result
+
+
+    def log_prob(self, value):
+        return paddle.log(self.pdf(value) + EPSILON)
+
+    def all_log_prob(self):
+        return paddle.log(self.probs + EPSILON)
+
+    def entropy(self):
+        return -paddle.sum(
+            self.probs * paddle.log(self.probs + EPSILON), axis=-1
+        ).unsqueeze(-1)
+
+    def exported_model_output(self):
+        return self.sample()
+
+
+class GaussianDistribution(nn.Layer):
+    def __init__(
+        self,
+        hidden_size: int,
+        num_outputs: int,
+        conditional_sigma: bool = False,
+        tanh_squash: bool = False,
+    ):
+        super().__init__()
+        self.conditional_sigma = conditional_sigma
+        self.mu = linear_layer(
+            hidden_size,
+            num_outputs,
+            kernel_init=Initialization.KaimingHeNormal,
+            kernel_gain=0.2,
+            bias_init=Initialization.Zero,
+        )
+        self.tanh_squash = tanh_squash
+        if conditional_sigma:
+            self.log_sigma = linear_layer(
+                hidden_size,
+                num_outputs,
+                kernel_init=Initialization.KaimingHeNormal,
+                kernel_gain=0.2,
+                bias_init=Initialization.Zero,
+            )
+        else:
+            # Paddle 创建可训练参数的方式
+            self.log_sigma = self.create_parameter(
+                shape=[1, num_outputs],
+                default_initializer=nn.initializer.Constant(0.0),
+                is_bias=False
+            )
+            # Paddle 默认 trainable=True (requires_grad=True)
+
+    def forward(self, inputs: paddle.Tensor) -> List[DistInstance]:
+        mu = self.mu(inputs)
+        if self.conditional_sigma:
+            log_sigma = paddle.clip(self.log_sigma(inputs), min=-20, max=2)
+        else:
+            # Expand so that entropy matches batch size.
+            # Paddle 支持自动 broadcasting，所以 mu * 0 + self.log_sigma 通常可以直接工作
+            log_sigma = mu * 0 + self.log_sigma
+
+        if self.tanh_squash:
+            return TanhGaussianDistInstance(mu, paddle.exp(log_sigma))
+        else:
+            return GaussianDistInstance(mu, paddle.exp(log_sigma))
+
+
+class MultiCategoricalDistribution(nn.Layer):
+    def __init__(self, hidden_size: int, act_sizes: List[int]):
+        super().__init__()
+        self.act_sizes = act_sizes
+        self.branches = self._create_policy_branches(hidden_size)
+
+    def _create_policy_branches(self, hidden_size: int) -> nn.LayerList:
+        branches = []
+        for size in self.act_sizes:
+            branch_output_layer = linear_layer(
+                hidden_size,
+                size,
+                kernel_init=Initialization.KaimingHeNormal,
+                kernel_gain=0.1,
+                bias_init=Initialization.Zero,
+            )
+            branches.append(branch_output_layer)
+        return nn.LayerList(branches)
+
+    def _mask_branch(
+        self, logits: paddle.Tensor, allow_mask: paddle.Tensor
+    ) -> paddle.Tensor:
+        # Zero out masked logits, then subtract a large value.
+        block_mask = -1.0 * allow_mask + 1.0
+        logits = logits * allow_mask - 1e8 * block_mask
+        return logits
+
+    def _split_masks(self, masks: paddle.Tensor) -> List[paddle.Tensor]:
+        split_masks = []
+        for idx, _ in enumerate(self.act_sizes):
+            start = int(np.sum(self.act_sizes[:idx]))
+            end = int(np.sum(self.act_sizes[: idx + 1]))
+            # Paddle slicing matches numpy/torch
+            split_masks.append(masks[:, start:end])
+        return split_masks
+
+    def forward(self, inputs: paddle.Tensor, masks: paddle.Tensor) -> List[DistInstance]:
+        # Todo - Support multiple branches in mask code
+        branch_distributions = []
+        masks = self._split_masks(masks)
+        for idx, branch in enumerate(self.branches):
+            logits = branch(inputs)
+            norm_logits = self._mask_branch(logits, masks[idx])
+            distribution = CategoricalDistInstance(norm_logits)
+            branch_distributions.append(distribution)
+        return branch_distributions
