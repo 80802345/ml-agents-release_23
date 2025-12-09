@@ -64,7 +64,7 @@ class ModelUtils:
             optim.set_lr(lr)
         else:
             # Fallback assuming 'learning_rate' is a tensor or float on the object
-            # Note: Paddle LRScheduler logic is handled internally usually, 
+            # Note: Paddle LRScheduler logic is handled internally usually,
             # but for manual update:
             optim._learning_rate = lr
             if isinstance(optim._learning_rate, paddle.Tensor):
@@ -162,7 +162,7 @@ class ModelUtils:
                 shape[1], shape[2], vis_encode_type
             )
             # Paddle image layers usually expect (C, H, W) or (N, C, H, W)
-            # mlagents logic seems to pass (H, W, C) or similar to constructor, 
+            # mlagents logic seems to pass (H, W, C) or similar to constructor,
             # ensure the Encoder classes handle it.
             return (visual_encoder_class(shape[1], shape[2], shape[0], h_size), h_size)
         # VECTOR
@@ -277,7 +277,7 @@ class ModelUtils:
             # paddle.nonzero returns [k, d], squeeze(1) makes it [k] indices
             indices = paddle.nonzero(partitions == i).squeeze(1)
             # Paddle supports advanced indexing with tensors
-            res += [paddle.gather(data, indices)] 
+            res += [paddle.gather(data, indices)]
         return res
 
     @staticmethod
@@ -293,19 +293,21 @@ class ModelUtils:
             # torch.permute(*torch.arange(tensor.ndim - 1, -1, -1))
             # Equivalent in Paddle: transpose with reversed axes
             perm = list(range(tensor.ndim - 1, -1, -1))
-            
+
             # Using simple boolean masking math instead of permute if the goal is just global sum?
-            # The original code permutes to reverse dimensions before summing. 
-            # If it's a scalar sum in the end, permute doesn't change the sum value, 
+            # The original code permutes to reverse dimensions before summing.
+            # If it's a scalar sum in the end, permute doesn't change the sum value,
             # but it might affect the order of operations for numerical stability or broadcasting?
             # We stick to the translation:
-            
+
             transposed_tensor = paddle.transpose(tensor, perm)
             transposed_ones = paddle.transpose(paddle.ones_like(tensor), perm)
-            
-            numerator = (transposed_tensor * masks).sum()
-            denominator = (transposed_ones * masks).cast('float32').sum()
-            
+            masks = masks.reshape((-1, 1))
+            # 新增：将布尔掩码转为float32类型（与transposed_tensor一致）
+            masks_float = masks.astype(paddle.float32)
+            numerator = (transposed_tensor * masks_float).sum()
+            denominator = (transposed_ones * masks_float).cast('float32').sum()
+
             return numerator / paddle.clip(denominator, min=1.0)
 
     @staticmethod
