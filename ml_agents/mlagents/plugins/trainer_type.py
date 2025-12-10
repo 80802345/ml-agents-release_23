@@ -3,20 +3,19 @@ from typing import Dict, Tuple, Any
 
 from mlagents import plugins as mla_plugins
 from mlagents.plugins import ML_AGENTS_TRAINER_TYPE
-from mlagents.trainers.poca.optimizer_torch import POCASettings
-from mlagents.trainers.poca.trainer import POCATrainer
-try:
-    from mlagents.trainers.ppo.optimizer_torch import PPOSettings
-except:
-    from mlagents.trainers.ppo.optimizer_paddle import PPOSettings
+# from mlagents.trainers.poca.optimizer_torch import POCASettings
+# from mlagents.trainers.poca.trainer import POCATrainer
+# # try:
+# #     from mlagents.trainers.ppo.optimizer_torch import PPOSettings
+from mlagents.trainers.ppo.optimizer_paddle import PPOSettings
 from mlagents.trainers.ppo.trainer import PPOTrainer
-from mlagents.trainers.sac.optimizer_torch import SACSettings
-from mlagents.trainers.sac.trainer import SACTrainer
+# from mlagents.trainers.sac.optimizer_torch import SACSettings
+# from mlagents.trainers.sac.trainer import SACTrainer
 from mlagents_envs import logging_util
 
 logger = logging_util.get_logger(__name__)
 
-
+#todo
 def get_default_trainer_types() -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     The Trainers that mlagents-learn always uses:
@@ -25,16 +24,16 @@ def get_default_trainer_types() -> Tuple[Dict[str, Any], Dict[str, Any]]:
     mla_plugins.all_trainer_types.update(
         {
             PPOTrainer.get_trainer_name(): PPOTrainer,
-            SACTrainer.get_trainer_name(): SACTrainer,
-            POCATrainer.get_trainer_name(): POCATrainer,
+            # SACTrainer.get_trainer_name(): SACTrainer,
+            # POCATrainer.get_trainer_name(): POCATrainer,
         }
     )
     # global all_trainer_settings
     mla_plugins.all_trainer_settings.update(
         {
             PPOTrainer.get_trainer_name(): PPOSettings,
-            SACTrainer.get_trainer_name(): SACSettings,
-            POCATrainer.get_trainer_name(): POCASettings,
+            # SACTrainer.get_trainer_name(): SACSettings,
+            # POCATrainer.get_trainer_name(): POCASettings,
         }
     )
 

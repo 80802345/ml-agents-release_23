@@ -4,8 +4,7 @@ from typing import List
 from mlagents.plugins import ML_AGENTS_STATS_WRITER
 from mlagents.trainers.settings import RunOptions
 from mlagents.trainers.stats import StatsWriter
-# 核心修改1：替换TensorboardWriter为VisualDLWriter，保留其他Writer
-from mlagents.trainers.stats import VisualDLWriter, GaugeWriter, ConsoleWriter
+from mlagents.trainers.stats import TensorboardWriter, GaugeWriter, ConsoleWriter
 from mlagents_envs import logging_util
 
 logger = logging_util.get_logger(__name__)
@@ -14,14 +13,13 @@ logger = logging_util.get_logger(__name__)
 def get_default_stats_writers(run_options: RunOptions) -> List[StatsWriter]:
     """
     The StatsWriters that mlagents-learn always uses:
-    * A VisualDLWriter to write information to VisualDL (替代原TensorboardWriter)
+    * A TensorboardWriter to write information to TensorBoard
     * A GaugeWriter to record our internal stats
     * A ConsoleWriter to output to stdout.
     """
     checkpoint_settings = run_options.checkpoint_settings
     return [
-        # 核心修改2：替换TensorboardWriter为VisualDLWriter，参数完全兼容
-        VisualDLWriter(
+        TensorboardWriter(
             checkpoint_settings.write_path,
             clear_past_data=not checkpoint_settings.resume,
             hidden_keys=["Is Training", "Step"],
@@ -48,6 +46,7 @@ def register_stats_writer_plugins(run_options: RunOptions) -> List[StatsWriter]:
     entry_points = importlib_metadata.entry_points()[ML_AGENTS_STATS_WRITER]
 
     for entry_point in entry_points:
+
         try:
             logger.debug(f"Initializing StatsWriter plugins: {entry_point.name}")
             plugin_func = entry_point.load()
@@ -61,10 +60,4 @@ def register_stats_writer_plugins(run_options: RunOptions) -> List[StatsWriter]:
             logger.exception(
                 f"Error initializing StatsWriter plugins for {entry_point.name}. This plugin will not be used."
             )
-
-    # 核心修改3：兼容插件未返回任何Writer的情况，兜底使用默认Writer
-    if not all_stats_writers:
-        logger.info("No valid StatsWriter plugins found, using default VisualDL/Console/Gauge writers.")
-        all_stats_writers = get_default_stats_writers(run_options)
-
     return all_stats_writers

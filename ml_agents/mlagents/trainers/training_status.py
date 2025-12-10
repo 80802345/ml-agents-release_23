@@ -5,7 +5,8 @@ import json
 import attr
 import cattr
 
-from mlagents.torch_utils import torch
+# from mlagents.torch_utils import torch
+from mlagents.paddle_utils import paddle
 from mlagents_envs.logging_util import get_logger
 from mlagents.trainers import __version__
 from mlagents.trainers.exception import TrainerError
@@ -27,7 +28,7 @@ class StatusType(Enum):
 class StatusMetaData:
     stats_format_version: str = STATUS_FORMAT_VERSION
     mlagents_version: str = __version__
-    torch_version: str = torch.__version__
+    torch_version: str = paddle.__version__
 
     def to_dict(self) -> Dict[str, str]:
         return cattr.unstructure(self)

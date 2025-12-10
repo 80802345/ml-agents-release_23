@@ -1,8 +1,8 @@
 import os
 from mlagents.trainers.exception import UnityTrainerException
 from mlagents.trainers.settings import TrainerSettings
-from mlagents.trainers.model_saver.torch_model_saver import DEFAULT_CHECKPOINT_NAME
-
+# from mlagents.trainers.model_saver.torch_model_saver import DEFAULT_CHECKPOINT_NAME
+from mlagents.trainers.model_saver.paddle_model_saver import DEFAULT_CHECKPOINT_NAME
 
 def validate_existing_directories(
     output_path: str, resume: bool, force: bool, init_path: str = None

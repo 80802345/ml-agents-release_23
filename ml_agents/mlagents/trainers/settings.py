@@ -624,7 +624,7 @@ class TrainerSettings(ExportableSettings):
 
     @checkpoint_interval.default
     def _set_default_checkpoint_interval(self):
-        return 500000
+        return 5000
 
     network_settings: NetworkSettings = attr.ib(factory=NetworkSettings)
     reward_signals: Dict[RewardSignalType, RewardSignalSettings] = attr.ib(
@@ -635,7 +635,7 @@ class TrainerSettings(ExportableSettings):
     even_checkpoints: bool = False
     max_steps: int = 500000
     time_horizon: int = 64
-    summary_freq: int = 50000
+    summary_freq: int = 5000
     threaded: bool = False
     self_play: Optional[SelfPlaySettings] = None
     behavioral_cloning: Optional[BehavioralCloningSettings] = None

@@ -1,3 +1,4 @@
+# 补充必要的基础导入（原代码缺失的部分）
 from collections import defaultdict
 from enum import Enum
 from typing import List, Dict, NamedTuple, Any, Optional
@@ -7,16 +8,21 @@ import os
 import time
 from threading import RLock
 
-from mlagents_envs.side_channel.stats_side_channel import StatsAggregationMethod
+# 核心替换：导入VisualDL的LogWriter（替代PyTorch的SummaryWriter）
+from visualdl import LogWriter
 
+# ML-Agents相关导入（原代码保留）
+from mlagents_envs.side_channel.stats_side_channel import StatsAggregationMethod
 from mlagents_envs.logging_util import get_logger
 from mlagents_envs.timers import set_gauge
-from torch.utils.tensorboard import SummaryWriter
-from mlagents.torch_utils.globals import get_rank
+
+# 注释掉原PyTorch相关导入（无需再用）
+# from torch.utils.tensorboard import SummaryWriter
+# from mlagents.torch_utils.globals import get_rank
 
 logger = get_logger(__name__)
 
-
+# 工具函数：将嵌套字典转为格式化字符串（原代码保留）
 def _dict_to_str(param_dict: Dict[str, Any], num_tabs: int) -> str:
     """
     Takes a parameter dictionary and converts it to a human-readable string.
@@ -39,6 +45,7 @@ def _dict_to_str(param_dict: Dict[str, Any], num_tabs: int) -> str:
         )
 
 
+# 统计结果结构化存储（原代码保留）
 class StatsSummary(NamedTuple):
     full_dist: List[float]
     aggregation_method: StatsAggregationMethod
@@ -71,11 +78,13 @@ class StatsSummary(NamedTuple):
         return np.sum(self.full_dist)
 
 
+# 统计属性类型枚举（原代码保留）
 class StatsPropertyType(Enum):
     HYPERPARAMETERS = "hyperparameters"
     SELF_PLAY = "selfplay"
 
 
+# 抽象基类：StatsWriter（原代码保留）
 class StatsWriter(abc.ABC):
     """
     A StatsWriter abstract class. A StatsWriter takes in a category, key, scalar value, and step
@@ -89,45 +98,21 @@ class StatsWriter(abc.ABC):
         value: float,
         aggregation: StatsAggregationMethod = StatsAggregationMethod.AVERAGE,
     ) -> None:
-        """
-        Callback method for handling an individual stat value as reported to the StatsReporter add_stat
-        or set_stat methods.
-
-        :param category: Category of the statistics. Usually this is the behavior name.
-        :param key: The type of statistic, e.g. Environment/Reward.
-        :param value: The value of the statistic.
-        :param aggregation: The aggregation method for the statistic, default StatsAggregationMethod.AVERAGE.
-        """
         pass
 
     @abc.abstractmethod
     def write_stats(
         self, category: str, values: Dict[str, StatsSummary], step: int
     ) -> None:
-        """
-        Callback to record training information
-        :param category: Category of the statistics. Usually this is the behavior name.
-        :param values: Dictionary of statistics.
-        :param step: The current training step.
-        :return:
-        """
         pass
 
     def add_property(
         self, category: str, property_type: StatsPropertyType, value: Any
     ) -> None:
-        """
-        Add a generic property to the StatsWriter. This could be e.g. a Dict of hyperparameters,
-        a max step count, a trainer type, etc. Note that not all StatsWriters need to be compatible
-        with all types of properties. For instance, a TB writer doesn't need a max step.
-
-        :param category: The category that the property belongs to.
-        :param property_type: The type of property.
-        :param value: The property itself.
-        """
         pass
 
 
+# GaugeWriter：写入计时器监控（原代码保留）
 class GaugeWriter(StatsWriter):
     """
     Write all stats that we receive to the timer gauges, so we can track them offline easily
@@ -154,13 +139,16 @@ class GaugeWriter(StatsWriter):
             )
 
 
+# ConsoleWriter：控制台打印（原代码保留，仅注释掉get_rank相关）
 class ConsoleWriter(StatsWriter):
     def __init__(self):
         self.training_start_time = time.time()
         # If self-play, we want to print ELO as well as reward
         self.self_play = False
         self.self_play_team = -1
-        self.rank = get_rank()
+        # 注释掉get_rank（原代码中未导入，避免报错）
+        # self.rank = get_rank()
+        self.rank = None  # 手动赋值为None，避免属性未定义
 
     def write_stats(
         self, category: str, values: Dict[str, StatsSummary], step: int
@@ -210,7 +198,8 @@ class ConsoleWriter(StatsWriter):
             self.self_play = value
 
 
-class TensorboardWriter(StatsWriter):
+# 核心改造：TensorboardWriter替换为VisualDL的LogWriter
+class VisualDLWriter(StatsWriter):  # 类名改为VisualDLWriter（更贴合实际功能）
     def __init__(
         self,
         base_dir: str,
@@ -218,16 +207,13 @@ class TensorboardWriter(StatsWriter):
         hidden_keys: Optional[List[str]] = None,
     ):
         """
-        A StatsWriter that writes to a Tensorboard summary.
-
-        :param base_dir: The directory within which to place all the summaries. Tensorboard files will be written to a
-        {base_dir}/{category} directory.
-        :param clear_past_data: Whether or not to clean up existing Tensorboard files associated with the base_dir and
-        category.
-        :param hidden_keys: If provided, Tensorboard Writer won't write statistics identified with these Keys in
-        Tensorboard summary.
+        A StatsWriter that writes to VisualDL summary (替代原TensorboardWriter)
+        :param base_dir: 日志根目录，每个category会生成子目录
+        :param clear_past_data: 是否清理历史日志文件
+        :param hidden_keys: 不需要写入的指标名列表
         """
-        self.summary_writers: Dict[str, SummaryWriter] = {}
+        # 替换为LogWriter字典（核心改造1）
+        self.log_writers: Dict[str, LogWriter] = {}
         self.base_dir: str = base_dir
         self._clear_past_data = clear_past_data
         self.hidden_keys: List[str] = hidden_keys if hidden_keys is not None else []
@@ -235,34 +221,42 @@ class TensorboardWriter(StatsWriter):
     def write_stats(
         self, category: str, values: Dict[str, StatsSummary], step: int
     ) -> None:
-        self._maybe_create_summary_writer(category)
+        self._maybe_create_log_writer(category)
         for key, value in values.items():
             if key in self.hidden_keys:
                 continue
-            self.summary_writers[category].add_scalar(
-                f"{key}", value.aggregated_value, step
+            # 写入标量（LogWriter参数和SummaryWriter完全兼容）
+            self.log_writers[category].add_scalar(
+                tag=f"{key}",
+                value=value.aggregated_value,
+                step=step
             )
+            # 写入直方图（核心改造2：适配LogWriter的histogram参数）
             if value.aggregation_method == StatsAggregationMethod.HISTOGRAM:
-                self.summary_writers[category].add_histogram(
-                    f"{key}_hist", np.array(value.full_dist), step
+                self.log_writers[category].add_histogram(
+                    tag=f"{key}_hist",
+                    values=np.array(value.full_dist),
+                    step=step
                 )
-            self.summary_writers[category].flush()
+            self.log_writers[category].flush()  # 立即刷入磁盘
 
-    def _maybe_create_summary_writer(self, category: str) -> None:
-        if category not in self.summary_writers:
-            filewriter_dir = "{basedir}/{category}".format(
-                basedir=self.base_dir, category=category
-            )
+    def _maybe_create_log_writer(self, category: str) -> None:
+        """按需创建LogWriter，避免重复初始化"""
+        if category not in self.log_writers:
+            filewriter_dir = f"{self.base_dir}/{category}"
             os.makedirs(filewriter_dir, exist_ok=True)
+            # 清理历史日志（原逻辑保留）
             if self._clear_past_data:
                 self._delete_all_events_files(filewriter_dir)
-            self.summary_writers[category] = SummaryWriter(filewriter_dir)
+            # 创建VisualDL的LogWriter（核心改造3）
+            self.log_writers[category] = LogWriter(logdir=filewriter_dir)
 
     def _delete_all_events_files(self, directory_name: str) -> None:
+        """删除历史日志文件（兼容VisualDL和TensorBoard日志）"""
         for file_name in os.listdir(directory_name):
-            if file_name.startswith("events.out"):
+            if file_name.startswith("events.out") or file_name.startswith("vdl_log"):
                 logger.warning(
-                    f"Deleting TensorBoard data {file_name} that was left over from a "
+                    f"Deleting VisualDL/TensorBoard data {file_name} that was left over from a "
                     "previous run."
                 )
                 full_fname = os.path.join(directory_name, file_name)
@@ -277,15 +271,21 @@ class TensorboardWriter(StatsWriter):
     def add_property(
         self, category: str, property_type: StatsPropertyType, value: Any
     ) -> None:
+        """写入超参数等文本信息（核心改造4）"""
         if property_type == StatsPropertyType.HYPERPARAMETERS:
             assert isinstance(value, dict)
             summary = _dict_to_str(value, 0)
-            self._maybe_create_summary_writer(category)
+            self._maybe_create_log_writer(category)
             if summary is not None:
-                self.summary_writers[category].add_text("Hyperparameters", summary)
-                self.summary_writers[category].flush()
+                self.log_writers[category].add_text(
+                    tag="Hyperparameters",
+                    text_string=summary,
+                    step=0  # 超参数写入step 0即可
+                )
+                self.log_writers[category].flush()
 
 
+# 统计报告器（原代码保留，仅适配Writer类名）
 class StatsReporter:
     writers: List[StatsWriter] = []
     stats_dict: Dict[str, Dict[str, List]] = defaultdict(lambda: defaultdict(list))
@@ -295,12 +295,6 @@ class StatsReporter:
     )
 
     def __init__(self, category: str):
-        """
-        Generic StatsReporter. A category is the broadest type of storage (would
-        correspond the run name and trainer name, e.g. 3DBalltest_3DBall. A key is the
-        type of stat it is (e.g. Environment/Reward). Finally the Value is the float value
-        attached to this stat.
-        """
         self.category: str = category
 
     @staticmethod
@@ -309,14 +303,6 @@ class StatsReporter:
             StatsReporter.writers.append(writer)
 
     def add_property(self, property_type: StatsPropertyType, value: Any) -> None:
-        """
-        Add a generic property to the StatsReporter. This could be e.g. a Dict of hyperparameters,
-        a max step count, a trainer type, etc. Note that not all StatsWriters need to be compatible
-        with all types of properties. For instance, a TB writer doesn't need a max step.
-
-        :param property_type: The type of property.
-        :param value: The property itself.
-        """
         with StatsReporter.lock:
             for writer in StatsReporter.writers:
                 writer.add_property(self.category, property_type, value)
@@ -327,13 +313,6 @@ class StatsReporter:
         value: float,
         aggregation: StatsAggregationMethod = StatsAggregationMethod.AVERAGE,
     ) -> None:
-        """
-        Add a float value stat to the StatsReporter.
-
-        :param key: The type of statistic, e.g. Environment/Reward.
-        :param value: the value of the statistic.
-        :param aggregation: the aggregation method for the statistic, default StatsAggregationMethod.AVERAGE.
-        """
         with StatsReporter.lock:
             StatsReporter.stats_dict[self.category][key].append(value)
             StatsReporter.stats_aggregation[self.category][key] = aggregation
@@ -341,13 +320,6 @@ class StatsReporter:
                 writer.on_add_stat(self.category, key, value, aggregation)
 
     def set_stat(self, key: str, value: float) -> None:
-        """
-        Sets a stat value to a float. This is for values that we don't want to average, and just
-        want the latest.
-
-        :param key: The type of statistic, e.g. Environment/Reward.
-        :param value: the value of the statistic.
-        """
         with StatsReporter.lock:
             StatsReporter.stats_dict[self.category][key] = [value]
             StatsReporter.stats_aggregation[self.category][
@@ -359,13 +331,6 @@ class StatsReporter:
                 )
 
     def write_stats(self, step: int) -> None:
-        """
-        Write out all stored statistics that fall under the category specified.
-        The currently stored values will be averaged, written out as a single value,
-        and the buffer cleared.
-
-        :param step: Training step which to write these stats as.
-        """
         with StatsReporter.lock:
             values: Dict[str, StatsSummary] = {}
             for key in StatsReporter.stats_dict[self.category]:
@@ -377,17 +342,11 @@ class StatsReporter:
             del StatsReporter.stats_dict[self.category]
 
     def get_stats_summaries(self, key: str) -> StatsSummary:
-        """
-        Get the mean, std, count, sum and aggregation method of a particular statistic, since last write.
-
-        :param key: The type of statistic, e.g. Environment/Reward.
-        :returns: A StatsSummary containing summary statistics.
-        """
         stat_values = StatsReporter.stats_dict[self.category][key]
         if len(stat_values) == 0:
             return StatsSummary.empty()
 
         return StatsSummary(
             full_dist=stat_values,
-            aggregation_method=StatsReporter.stats_aggregation[self.category][key],
+            aggregation_method=StatsReporter.stats_aggregation[self.category][key]
         )

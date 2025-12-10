@@ -1,5 +1,6 @@
 import numpy as np
-from mlagents.torch_utils import torch
+# from mlagents.torch_utils import torch
+from mlagents.paddle_utils import paddle
 from abc import ABC, abstractmethod
 from typing import Dict
 
@@ -72,7 +73,7 @@ class BaseRewardProvider(ABC):
             "The reward provider's update method has not been implemented "
         )
 
-    def get_modules(self) -> Dict[str, torch.nn.Module]:
+    def get_modules(self) -> Dict[str, paddle.nn.Layer]:
         """
         Returns a dictionary of string identifiers to the torch.nn.Modules used by
         the reward providers. This method is used for loading and saving the weights

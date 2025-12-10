@@ -72,7 +72,7 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
              # Basic fallback if utility function missing
              device = options.torch_settings.device if options.torch_settings.device else "cpu"
              paddle_utils.paddle.set_device(device)
-             
+
         checkpoint_settings = options.checkpoint_settings
         env_settings = options.env_settings
         engine_settings = options.engine_settings
@@ -221,9 +221,9 @@ def run_cli(options: RunOptions) -> None:
         ╓╖╬│╡  ││╬╖╖
     ╓╖╬│││││┘  ╬│││││╬╖
  ╖╬│││││╬╜        ╙╬│││││╖╖                                     ╗╗╗
- ╬╬╬╬╖││╦╖        ╖╬││╗╣╣╣╬      ╟╣╣╬    ╟╣╣╣            ╜╜╜  ╟╣╣
- ╬╬╬╬╬╬╬╬╖│╬╖╖╓╬╪│╓╣╣╣╣╣╣╣╬      ╟╣╣╬    ╟╣╣╣ ╒╣╣╖╗╣╣╣╗   ╣╣╣ ╣╣╣╣╣╣ ╟╣╣╖   ╣╣╣
- ╬╬╬╬┐  ╙╬╬╬╬│╓╣╣╣╝╜  ╫╣╣╣╬      ╟╣╣╬    ╟╣╣╣ ╟╣╣╣╙ ╙╣╣╣  ╣╣╣ ╙╟╣╣╜╙  ╫╣╣  ╟╣╣
+ ╬╬╬╬╖││╦╖        ╖╬││╗╣╣╣╬     ╟╣╣╬    ╟╣╣╣            ╜╜╜  ╟╣╣
+ ╬╬╬╬╬╬╬╬╖│╬╖╖╓╬╪│╓╣╣╣╣╣╣╣╬     ╟╣╣╬    ╟╣╣╣ ╒╣╣╖╗╣╣╣╗   ╣╣╣ ╣╣╣╣╣╣ ╟╣╣╖   ╣╣╣
+ ╬╬╬╬┐  ╙╬╬╬╬│╓╣╣╣╝╜  ╫╣╣╣╬     ╟╣╣╬    ╟╣╣╣ ╟╣╣╣╙ ╙╣╣╣  ╣╣╣ ╙╟╣╣╜╙  ╫╣╣  ╟╣╣
  ╬╬╬╬┐    ╙╬╬╣╣      ╫╣╣╣╬      ╟╣╣╬    ╟╣╣╣ ╟╣╣╬   ╣╣╣  ╣╣╣  ╟╣╣     ╣╣╣┌╣╣╜
  ╬╬╬╜       ╬╬╣╣      ╙╝╣╣╬      ╙╣╣╣╗╖╓╗╣╣╣╜ ╟╣╣╬   ╣╣╣  ╣╣╣  ╟╣╣╦╓    ╣╣╣╣╣
  ╙   ╓╦╖    ╬╬╣╣   ╓╗╗╖            ╙╝╣╣╣╣╝╜   ╘╝╝╜   ╝╝╝  ╝╝╝  ╙╣╣╣    ╟╣╣╣
@@ -234,7 +234,7 @@ def run_cli(options: RunOptions) -> None:
         """
         )
     except Exception:
-        print("\n\n\tUnity Technologies\n")
+        print("\n\n\tPaddlePaddle XUnity Technologies\n")
     print(get_version_string())
 
     if options.debug:

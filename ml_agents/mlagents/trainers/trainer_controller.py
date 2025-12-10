@@ -27,8 +27,8 @@ from mlagents.trainers.environment_parameter_manager import EnvironmentParameter
 from mlagents.trainers.trainer import TrainerFactory
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.agent_processor import AgentManager
-from mlagents import torch_utils
-from mlagents.torch_utils.globals import get_rank
+# from mlagents import torch_utils
+from mlagents.paddle_utils.globals import get_rank
 
 
 class TrainerController:
@@ -65,7 +65,7 @@ class TrainerController:
         self.trainer_threads: List[threading.Thread] = []
         self.kill_trainers = False
         np.random.seed(training_seed)
-        torch_utils.torch.manual_seed(training_seed)
+        # torch_utils.torch.manual_seed(training_seed)
         self.rank = get_rank()
 
     @timed

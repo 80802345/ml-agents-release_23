@@ -2,7 +2,7 @@ import os
 
 from distutils.version import LooseVersion
 import pkg_resources
-from mlagents.torch_utils import cpu_utils
+# from mlagents.torch_utils import cpu_utils
 from mlagents.trainers.settings import PaddleSettings
 from mlagents_envs.logging_util import get_logger
 
@@ -48,15 +48,29 @@ _device = paddle.set_device("cpu")
 def set_paddle_config(paddle_settings: PaddleSettings) -> None:
     global _device
 
+    # 1. 确定设备字符串（处理cuda/gpu兼容、自动判断）
     if paddle_settings.device is None:
+        # 自动判断：有CUDA则用GPU，否则用CPU
         device_str = "gpu" if paddle.is_compiled_with_cuda() else "cpu"
     else:
-        device_str = paddle_settings.device
+        # 手动指定设备：兼容"cuda"→"gpu"（Paddle标准是gpu）
+        device_str = paddle_settings.device.lower()  # 统一小写，避免大小写问题
         if device_str == "cuda":
             device_str = "gpu"
+        # 校验设备合法性，避免无效输入
+        if device_str not in ["gpu", "cpu"] and not device_str.startswith(("gpu:", "cpu:")):
+            logger.warning(f"无效的设备指定 {paddle_settings.device}，自动切换为CPU")
+            device_str = "cpu"
 
-    _device = paddle.set_device(device_str)
+    # 2. 设置Paddle默认设备（关键修复：set_device无返回值，单独获取设备信息）
+    paddle.set_device(device_str)
+    # 正确获取当前设备字符串（而非接收set_device的返回值）
+    _device = paddle.get_device()
+
+    # 3. 设置默认数据类型
     paddle.set_default_dtype("float32")
+
+    # 4. 日志输出（优化：打印具体设备，如gpu:0/cpu，而非None）
     logger.debug(f"default Paddle device: {_device}")
 
 

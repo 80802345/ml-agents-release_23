@@ -6,7 +6,7 @@ import sys
 from typing import Optional, Dict
 import mlagents_envs
 import mlagents.trainers
-from mlagents import torch_utils
+from mlagents import paddle_utils
 from mlagents.trainers.settings import RewardSignalType
 from mlagents_envs.exception import UnityCommunicationException
 from mlagents_envs.side_channel import (
@@ -118,8 +118,8 @@ class TrainingAnalyticsSideChannel(DefaultTrainingAnalyticsSideChannel):
             python_version=f"{vi[0]}.{vi[1]}.{vi[2]}",
             mlagents_version=mlagents.trainers.__version__,
             mlagents_envs_version=mlagents_envs.__version__,
-            torch_version=torch_utils.torch.__version__,
-            torch_device_type=torch_utils.default_device().type,
+            torch_version=paddle_utils.paddle.__version__,
+            torch_device_type=paddle_utils.default_device(),
             num_envs=run_options.env_settings.num_envs,
             num_environment_parameters=len(env_params) if env_params else 0,
             run_options=json.dumps(sanitized_run_options),
