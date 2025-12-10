@@ -27,8 +27,8 @@ from mlagents.trainers.environment_parameter_manager import EnvironmentParameter
 from mlagents.trainers.trainer import TrainerFactory
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.agent_processor import AgentManager
-from mlagents import torch_utils
-from mlagents.torch_utils.globals import get_rank
+# from mlagents import torch_utils
+# from mlagents.torch_utils.globals import get_rank
 
 
 class TrainerController:

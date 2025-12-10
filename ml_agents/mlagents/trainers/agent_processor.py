@@ -3,7 +3,9 @@ import numpy as np
 from typing import List, Dict, TypeVar, Generic, Tuple, Any, Union
 from collections import defaultdict, Counter
 import queue
-from mlagents.torch_utils import torch
+
+from mlagents.paddle_utils import paddle
+# from mlagents.torch_utils import torch
 
 from mlagents_envs.base_env import (
     ActionTuple,
@@ -105,7 +107,7 @@ class AgentProcessor:
         if take_action_outputs:
             try:
                 for _entropy in take_action_outputs["entropy"]:
-                    if isinstance(_entropy, torch.Tensor):
+                    if isinstance(_entropy, paddle.Tensor):
                         _entropy = ModelUtils.to_numpy(_entropy)
                     self._stats_reporter.add_stat("Policy/Entropy", _entropy)
             except KeyError:

@@ -2,7 +2,7 @@ import os
 
 from distutils.version import LooseVersion
 import pkg_resources
-from mlagents.torch_utils import cpu_utils
+# from mlagents.torch_utils import cpu_utils
 from mlagents.trainers.settings import PaddleSettings
 from mlagents_envs.logging_util import get_logger
 
