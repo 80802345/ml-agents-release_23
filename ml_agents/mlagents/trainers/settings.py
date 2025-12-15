@@ -633,7 +633,7 @@ class TrainerSettings(ExportableSettings):
     init_path: Optional[str] = None
     keep_checkpoints: int = 5
     even_checkpoints: bool = False
-    max_steps: int = 500000
+    max_steps: int = 90000
     time_horizon: int = 64
     summary_freq: int = 5000
     threaded: bool = False

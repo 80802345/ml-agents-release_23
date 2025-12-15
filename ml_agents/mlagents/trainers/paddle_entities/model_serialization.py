@@ -4,7 +4,9 @@ import paddle
 
 from mlagents_envs.logging_util import get_logger
 from mlagents.trainers.settings import SerializationSettings
-
+import os
+os.environ["FLAGS_ENABLE_PIR_API"] = "False"
+os.environ["FLAGS_USE_PIR_COMPILER"] = "False"
 logger = get_logger(__name__)
 
 
@@ -89,6 +91,7 @@ class ModelSerializer:
         # Sentis also expect to get data in NCHW.
         # Any multi-dimentional input should follow that otherwise will
         # cause problem for Sentis import.
+
         self.policy = policy
         observation_specs = self.policy.behavior_spec.observation_specs
         batch_dim = [1]
@@ -145,17 +148,15 @@ class ModelSerializer:
         # Structure must match SimpleActor.forward(inputs, masks, memories)
 
         self.input_specs = []
-
-        # 1. 构造 Observations 列表 (对应 forward 的第一个参数 inputs)
-        obs_specs_list = []
+        pre_obs=[]
         for i, obs_tensor in enumerate(dummy_obs):
             # Use None for dynamic batch size
             shape = list(obs_tensor.shape)
             shape[0] = None
-            obs_specs_list.append(
+            pre_obs.append(
                 paddle.static.InputSpec(shape=shape, dtype='float32', name=self.input_names[i])
             )
-        self.input_specs.append(obs_specs_list)
+        self.input_specs.append(pre_obs)
 
         # --- Argument 2: masks (Tensor) ---
         mask_shape = list(dummy_masks.shape)
@@ -182,18 +183,21 @@ class ModelSerializer:
         if len(shape) == 3:
             return shape[0], shape[1], shape[2]
         return shape
-
+    #todo: Onnx transforming in future
     def export_policy_model(self, output_filepath: str) -> None:
         """
         Exports a Paddle model for a Policy to .onnx format for Unity embedding.
 
         :param output_filepath: file path to output the model (without file suffix)
         """
-        onnx_output_path = f"{output_filepath}.onnx"
-        logger.debug(f"Converting to {onnx_output_path}")
-
-        # Ensure the model is in eval mode
+        model_output_path = f"{output_filepath}.pdmodel"
+        logger.debug(f"Converting to {model_output_path}")
         self.policy.actor.eval()
+        # net=paddle.jit.to_static(self.policy.actor)
+        paddle.save(self.policy.actor.state_dict(), model_output_path)
+        #paddle.jit.save(self.policy.actor, model_output_path, input_spec=self.input_specs)
+        # Ensure the model is in eval mode
+
 
 
         # with exporting_to_onnx():

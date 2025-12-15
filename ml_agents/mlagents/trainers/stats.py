@@ -16,10 +16,6 @@ from mlagents_envs.side_channel.stats_side_channel import StatsAggregationMethod
 from mlagents_envs.logging_util import get_logger
 from mlagents_envs.timers import set_gauge
 
-# 注释掉原PyTorch相关导入（无需再用）
-# from torch.utils.tensorboard import SummaryWriter
-# from mlagents.torch_utils.globals import get_rank
-
 logger = get_logger(__name__)
 
 # 工具函数：将嵌套字典转为格式化字符串（原代码保留）
