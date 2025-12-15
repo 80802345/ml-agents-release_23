@@ -5,7 +5,6 @@ import json
 import attr
 import cattr
 
-# from mlagents.torch_utils import torch
 from mlagents.paddle_utils import paddle
 from mlagents_envs.logging_util import get_logger
 from mlagents.trainers import __version__
