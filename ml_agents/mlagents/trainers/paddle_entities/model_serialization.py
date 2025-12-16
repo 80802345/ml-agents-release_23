@@ -211,7 +211,7 @@ class ModelSerializer:
         #
         #     # Note on Output Names:
         #     # Paddle's export mechanism doesn't natively support "renaming" output nodes
-        #     # via a simple list argument like PyTorch does.
+        #     # via a simple list argument.
         #     # The outputs will be named based on the variable names in the static graph.
         #     # To strictly enforce TensorNames for Unity Sentis compatibility, one might need
         #     # to use the `onnx` python library to load the model and rename output nodes manually

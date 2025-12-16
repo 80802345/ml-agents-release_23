@@ -289,7 +289,6 @@ class ModelUtils:
                 (paddle.ones_like(tensor) * masks).cast('float32').sum(), min=1.0
             )
         else:
-            # torch.permute(*torch.arange(tensor.ndim - 1, -1, -1))
             # Equivalent in Paddle: transpose with reversed axes
             perm = list(range(tensor.ndim - 1, -1, -1))
 
@@ -391,9 +390,7 @@ class ModelUtils:
         advantage = advantages.unsqueeze(-1)
         r_theta = paddle.exp(log_probs - old_log_probs)
         p_opt_a = r_theta * advantage
-        # torch.clamp -> paddle.clip
         p_opt_b = paddle.clip(r_theta, 1.0 - epsilon, 1.0 + epsilon) * advantage
-        # torch.min -> paddle.minimum (element-wise)
         policy_loss = -1 * ModelUtils.masked_mean(
             paddle.minimum(p_opt_a, p_opt_b), loss_masks
         )

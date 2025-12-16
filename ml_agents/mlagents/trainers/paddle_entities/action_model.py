@@ -137,7 +137,6 @@ class ActionModel(nn.Layer):
         action_log_probs = ActionLogProbs(
             continuous_log_prob, discrete_log_probs, all_discrete_log_probs
         )
-        # Torch 的 dim 对应 Paddle 的 axis
         entropies = paddle.concat(entropies_list, axis=1)
         return action_log_probs, entropies
 
@@ -177,7 +176,6 @@ class ActionModel(nn.Layer):
             action_out_deprecated = continuous_out
             deterministic_continuous_out = dists.continuous.deterministic_sample()
             if self.clip_action:
-                # torch.clamp -> paddle.clip
                 continuous_out = paddle.clip(continuous_out, -3, 3) / 3
                 action_out_deprecated = continuous_out
                 deterministic_continuous_out = (

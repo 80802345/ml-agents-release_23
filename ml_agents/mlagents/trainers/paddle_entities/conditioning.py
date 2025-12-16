@@ -47,7 +47,6 @@ class HyperNetwork(nn.Layer):
         )
 
         # Re-initializing the weights of the last layer of the hypernetwork
-        # PyTorch: flat_output.weight.data.uniform_(-bound, bound)
         bound = math.sqrt(1 / (layer_size * self.input_size))
         uniform_init = nn.initializer.Uniform(-bound, bound)
         uniform_init(flat_output.weight)
@@ -55,7 +54,6 @@ class HyperNetwork(nn.Layer):
         self.hypernet = nn.Sequential(*layers, LayerNorm(), flat_output)
 
         # The hypernetwork will not generate the bias of the main network layer
-        # PyTorch: self.bias = torch.nn.Parameter(torch.zeros(output_size))
         self.bias = self.create_parameter(
             shape=[output_size],
             default_initializer=nn.initializer.Constant(0.0),
@@ -68,7 +66,6 @@ class HyperNetwork(nn.Layer):
         # view -> reshape
         output_weights = output_weights.reshape([-1, self.input_size, self.output_size])
 
-        # torch.bmm -> paddle.bmm
         result = (
             paddle.bmm(input_activation.unsqueeze(1), output_weights).squeeze(1)
             + self.bias
@@ -111,7 +108,6 @@ class ConditionalEncoder(nn.Layer):
                 )
             layers.append(Swish())
             prev_size = hidden_size
-        # torch.nn.ModuleList -> paddle.nn.LayerList
         self.layers = nn.LayerList(layers)
 
     def forward(

@@ -53,7 +53,6 @@ class ActionLogProbs(NamedTuple):
         """
         Returns the discrete log probs list as a stacked tensor
         """
-        # torch.stack(..., dim=-1) -> paddle.stack(..., axis=-1)
         return paddle.stack(self.discrete_list, axis=-1)
 
     @property
@@ -61,7 +60,6 @@ class ActionLogProbs(NamedTuple):
         """
         Returns the discrete log probs of each branch as a tensor
         """
-        # torch.cat(..., dim=1) -> paddle.concat(..., axis=1)
         return paddle.concat(self.all_discrete_list, axis=1)
 
     def to_log_probs_tuple(self) -> LogProbsTuple:
@@ -96,7 +94,6 @@ class ActionLogProbs(NamedTuple):
         A utility method that returns all log probs in ActionLogProbs as a flattened tensor.
         This is useful for algorithms like PPO which can treat all log probs in the same way.
         """
-        # torch.cat(..., dim=1) -> paddle.concat(..., axis=1)
         return paddle.concat(self._to_tensor_list(), axis=1)
 
     @staticmethod

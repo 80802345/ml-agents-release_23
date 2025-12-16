@@ -105,7 +105,6 @@ class DiscriminatorNetwork(nn.Layer):
         estimator_input_size = encoder_settings.hidden_units
         if settings.use_vail:
             estimator_input_size = self.z_size
-            # torch.nn.Parameter -> self.create_parameter
             self._z_sigma = self.create_parameter(
                 shape=[self.z_size],
                 default_initializer=nn.initializer.Constant(1.0),
@@ -305,14 +304,14 @@ class DiscriminatorNetwork(nn.Layer):
         # Typically gradient penalty is on the input space magnitude.
         # If multiple inputs, we sum their norms or concat?
         # The original code takes gradients[0] implying it might only look at the first input
-        # OR `encoder_input` was passed as a tuple, so `torch.autograd.grad` returns tuple.
-        # Original: gradient = torch.autograd.grad(..., encoder_input, ...)[0]
+        # OR `encoder_input` was passed as a tuple, so gradient computation returns tuple.
+        # Original: gradient = autograd.grad(..., encoder_input, ...)[0]
         # Wait, if encoder_input is a tuple of multiple tensors (e.g. visual + vector + action),
         # grabbing [0] only penalizes the first observation?
         # If the original code did that, we follow it.
         # However, ML-Agents usually has a specific structure.
         # If `interp_inputs` is a list, `encoder_input` is a list.
-        # Let's verify `torch.autograd.grad` behavior: returns tuple of gradients matching inputs.
+        # Gradient computation returns tuple of gradients matching inputs.
 
         # If we follow the original code strictly:
         gradient = gradients[0]

@@ -53,7 +53,6 @@ class AgentAction(NamedTuple):
         if self.continuous_tensor is not None:
             _continuous_tensor = self.continuous_tensor
             if clip:
-                # torch.clamp -> paddle.clip
                 _continuous_tensor = paddle.clip(_continuous_tensor, -3, 3) / 3
             continuous = ModelUtils.to_numpy(_continuous_tensor)
             action_tuple.add_continuous(continuous)
@@ -61,10 +60,10 @@ class AgentAction(NamedTuple):
             # discrete_tensor is [batch, num_branches] or [batch, 1, num_branches]?
             # Usually [batch, time, branches] or [batch, branches]
             # Assuming discrete_tensor property stack works correctly.
-            # torch: [:, 0, :] implies grabbing first element of sequence?
+            # [:, 0, :] implies grabbing first element of sequence?
             # Need to verify dimension. Assuming code structure matches original.
             if len(self.discrete_list) > 0:
-                # Note: The original torch code used self.discrete_tensor[:, 0, :]
+                # Note: The original code used self.discrete_tensor[:, 0, :]
                 # This implies discrete_list elements are [Batch, Time, ...] or similar?
                 # or [Batch, 1]?
                 # If discrete_list elements are 1D [Batch], stacking gives [Batch, Branches].
@@ -85,7 +84,6 @@ class AgentAction(NamedTuple):
         if BufferKey.CONTINUOUS_ACTION in buff:
             continuous = ModelUtils.list_to_tensor(buff[BufferKey.CONTINUOUS_ACTION])
         if BufferKey.DISCRETE_ACTION in buff:
-            # dtype=torch.long -> dtype='int64'
             discrete_tensor = ModelUtils.list_to_tensor(
                 buff[BufferKey.DISCRETE_ACTION], dtype='int64'
             )

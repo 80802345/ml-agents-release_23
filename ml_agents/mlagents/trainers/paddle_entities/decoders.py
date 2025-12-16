@@ -15,7 +15,6 @@ class ValueHeads(nn.Layer):
             value = linear_layer(input_size, output_size)
             _value_heads[name] = value
 
-        # torch.nn.ModuleDict -> paddle.nn.LayerDict
         self.value_heads = nn.LayerDict(_value_heads)
 
     def forward(self, hidden: paddle.Tensor) -> Dict[str, paddle.Tensor]:

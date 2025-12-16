@@ -27,7 +27,6 @@ def get_zero_entities_mask(entities: List[paddle.Tensor]) -> List[paddle.Tensor]
     """
     with paddle.no_grad():
         # Generate the masking tensors for each entities tensor (mask only if all zeros)
-        # torch.sum(ent**2, axis=2) -> paddle.sum
         key_masks: List[paddle.Tensor] = [
             (paddle.sum(ent**2, axis=2) < 0.01).cast('float32') for ent in entities
         ]
@@ -151,7 +150,6 @@ class EntityEmbedding(nn.Layer):
 
         if self.self_size > 0:
             expanded_self = x_self.reshape([-1, 1, self.self_size])
-            # torch.cat([x]*N) equivalent list multiplication
             expanded_self = paddle.concat([expanded_self] * num_entities, axis=1)
             # Concatenate all observations with self
             entities = paddle.concat([expanded_self, entities], axis=2)

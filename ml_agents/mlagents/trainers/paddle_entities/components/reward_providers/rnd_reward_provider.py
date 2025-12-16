@@ -42,7 +42,6 @@ class RNDRewardProvider(BaseRewardProvider):
         with paddle.no_grad():
             target = self._random_network(mini_batch)
             prediction = self._training_network(mini_batch)
-            # torch.sum(..., dim=1) -> paddle.sum(..., axis=1)
             rewards = paddle.sum((prediction - target) ** 2, axis=1)
         return ModelUtils.to_numpy(rewards)
 

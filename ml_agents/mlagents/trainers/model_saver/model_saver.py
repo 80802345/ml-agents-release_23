@@ -41,7 +41,7 @@ class BaseModelSaver(abc.ABC):
         :param behavior_name: Behavior name of bevavior to be trained
         :return: A Tuple of the path to the exported file, as well as a List of any
             auxillary files that were returned. For instance, an exported file would be Model.onnx,
-            and the auxillary files would be [Model.pt] for PyTorch
+            and the auxillary files would be [Model.pdparams] for Paddle
         """
         pass
 

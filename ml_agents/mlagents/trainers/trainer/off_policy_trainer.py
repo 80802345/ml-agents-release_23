@@ -60,7 +60,7 @@ class OffPolicyTrainer(RLTrainer):
 
         self.seed = seed
         self.policy: Policy = None  # type: ignore
-        self.optimizer: TorchOptimizer = None  # type: ignore
+        self.optimizer: PaddleOptimizer = None  # type: ignore
         self.hyperparameters: OffPolicyHyperparamSettings = cast(
             OffPolicyHyperparamSettings, trainer_settings.hyperparameters
         )

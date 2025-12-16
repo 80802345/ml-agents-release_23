@@ -131,7 +131,6 @@ class PaddlePPOOptimizer(PaddleOptimizer):
             for i in range(0, len(batch[BufferKey.MEMORY]), self.policy.sequence_length)
         ]
         if len(memories) > 0:
-            # torch.stack -> paddle.stack, unsqueeze(0) -> unsqueeze(axis=0)
             memories = paddle.stack(memories).unsqueeze(axis=0)
         else:
             memories = None 
@@ -168,7 +167,6 @@ class PaddlePPOOptimizer(PaddleOptimizer):
         old_log_probs = ActionLogProbs.from_buffer(batch).flatten()
         log_probs = log_probs.flatten()
         
-        # dtype=torch.bool -> dtype='bool'
         loss_masks = ModelUtils.list_to_tensor(batch[BufferKey.MASKS], dtype='bool')
         
         # PPO Loss Calculations (Delegated to ModelUtils which should be Paddle-compatible now)

@@ -65,8 +65,6 @@ class GaussianDistInstance(DistInstance):
         self.std = std
 
     def sample(self):
-        # paddle.randn_like 在某些版本可能不支持 complex types 或特定 inputs，
-        # 使用 paddle.randn 配合 shape 更稳健，或者直接 use randn_like 如果版本 >= 2.0
         sample = self.mean + paddle.randn(self.mean.shape) * self.std
         return sample
 
@@ -100,12 +98,10 @@ class GaussianDistInstance(DistInstance):
 class TanhGaussianDistInstance(GaussianDistInstance):
     def __init__(self, mean, std):
         super().__init__(mean, std)
-        # Paddle 的 Transform API 略有不同，这里初始化
         self.transform = p_dist.TanhTransform()
 
     def sample(self):
         unsquashed_sample = super().sample()
-        # PyTorch: self.transform(x) -> Paddle: self.transform.forward(x)
         squashed = self.transform.forward(unsquashed_sample)
         return squashed
 
@@ -114,12 +110,10 @@ class TanhGaussianDistInstance(GaussianDistInstance):
         return 0.5 * paddle.log((1 + capped_value) / (1 - capped_value) + EPSILON)
 
     def log_prob(self, value):
-        # PyTorch: self.transform.inv(x) -> Paddle: self.transform.inverse(x)
         unsquashed = self.transform.inverse(value)
 
-        # PyTorch: transform.log_abs_det_jacobian(x, y)
-        # Paddle: transform.forward_log_det_jacobian(x) (只需要 x，通常结果一样)
-        # 注意: PyTorch 的实现这里减去了 log_det，公式是 p(y) = p(x) / |det| -> log p(y) = log p(x) - log |det|
+        # Paddle: transform.forward_log_det_jacobian(x)
+        # Formula: p(y) = p(x) / |det| -> log p(y) = log p(x) - log |det|
         log_det = self.transform.forward_log_det_jacobian(unsquashed)
 
         return super().log_prob(unsquashed) - log_det
@@ -139,28 +133,14 @@ class CategoricalDistInstance(DiscreteDistInstance):
         return paddle.argmax(self.probs, axis=1, keepdim=True)
 
     def pdf(self, value):
-        # 原代码使用了复杂的 gather/permute 逻辑来避开 ONNX 问题。
-        # 在 Paddle 中，最接近 torch.gather(..., dim=-1) 的是 paddle.take_along_axis
-        # value shape: [batch, 1], self.probs shape: [batch, num_actions]
-        # 我们想取出每个 batch 中对应 index 的概率
-
-        # 确保 value 是 int64 类型用于索引
 
         idx=paddle.arange(start=0,end=len(value),dtype=paddle.int64).unsqueeze(-1)
-        #idx = value.cast('int64').unsqueeze(-1) #拓展一维度
-        # probs = paddle.take_along_axis(self.probs, indices=idx, axis=-1)
-        # return probs.squeeze(-1)
 
-        probs_perm = self.probs.transpose((1, 0))  # 替代permute(1,0)
-        # 步骤2.2：value展平+转int64（Paddle索引必须为int64）
+        probs_perm = self.probs.transpose((1, 0))  
         value_flat = value.flatten().cast('int64')
-        # 步骤2.3：按value筛选行（Paddle张量索引逻辑与PyTorch一致）
         probs_selected = probs_perm[value_flat]
-
-        # 3. 沿最后一维取值：等价于torch.gather(..., -1, idx)
         probs_gathered = paddle.take_along_axis(probs_selected, indices=idx, axis=-1)
 
-        # 4. 挤压最后一维：等价于squeeze(-1)
         result = probs_gathered.squeeze(-1)
         return result
 
@@ -207,13 +187,11 @@ class GaussianDistribution(nn.Layer):
                 bias_init=Initialization.Zero,
             )
         else:
-            # Paddle 创建可训练参数的方式
             self.log_sigma = self.create_parameter(
                 shape=[1, num_outputs],
                 default_initializer=nn.initializer.Constant(0.0),
                 is_bias=False
             )
-            # Paddle 默认 trainable=True (requires_grad=True)
 
     def forward(self, inputs: paddle.Tensor) -> List[DistInstance]:
         mu = self.mu(inputs)
@@ -221,7 +199,6 @@ class GaussianDistribution(nn.Layer):
             log_sigma = paddle.clip(self.log_sigma(inputs), min=-20, max=2)
         else:
             # Expand so that entropy matches batch size.
-            # Paddle 支持自动 broadcasting，所以 mu * 0 + self.log_sigma 通常可以直接工作
             log_sigma = mu * 0 + self.log_sigma
 
         if self.tanh_squash:
@@ -262,7 +239,6 @@ class MultiCategoricalDistribution(nn.Layer):
         for idx, _ in enumerate(self.act_sizes):
             start = int(np.sum(self.act_sizes[:idx]))
             end = int(np.sum(self.act_sizes[: idx + 1]))
-            # Paddle slicing matches numpy/torch
             split_masks.append(masks[:, start:end])
         return split_masks
 

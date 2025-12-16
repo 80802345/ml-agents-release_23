@@ -12,5 +12,5 @@ modules:
     - name: mlagents
       file_name: Python-Optimizer-Documentation.md
       submodules:
-        - trainers.optimizer.torch_optimizer
+        - trainers.optimizer.paddle_optimizer
         - trainers.optimizer.optimizer

@@ -167,7 +167,6 @@ class PaddlePolicy(Policy):
         return self.get_current_step()
 
     def load_weights(self, values: Dict[str, Any]) -> None:
-        # torch uses load_state_dict, paddle uses set_state_dict
         self.actor.set_state_dict(values)
 
     def init_load_weights(self) -> None:

@@ -26,7 +26,6 @@ from mlagents.trainers.paddle_entities.components.reward_providers.base_reward_p
 )
 from mlagents_envs.timers import hierarchical_timer
 
-# Assuming you have a PaddleModelSaver, otherwise you need to convert TorchModelSaver
 try:
     from mlagents.trainers.model_saver.paddle_model_saver import PaddleModelSaver
 except ImportError:

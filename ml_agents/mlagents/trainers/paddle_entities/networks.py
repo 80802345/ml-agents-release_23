@@ -321,7 +321,7 @@ class MultiAgentNetworkBody(nn.Layer):
         else:
             self.lstm = None  # type: ignore
 
-        # PyTorch 的 nn.Parameter(..., requires_grad=False) 对应 Paddle 的 register_buffer
+        # register_buffer for non-trainable parameters
         self.register_buffer("_current_max_agents", paddle.to_tensor(1, dtype='float32'))
 
 

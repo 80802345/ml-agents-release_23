@@ -44,8 +44,7 @@ def get_initializer(init_type: Initialization):
     elif init_type == Initialization.XavierGlorotUniform:
         return nn.initializer.XavierUniform()
     elif init_type == Initialization.KaimingHeNormal:
-        # PyTorch impl uses nonlinearity='linear' in the provided code, which implies gain=1
-        # Paddle Kaiming defaults usually assume leaky_relu, but we can stick to standard defaults or adjust
+        # Kaiming initialization with standard defaults
         return nn.initializer.KaimingNormal()
     elif init_type == Initialization.KaimingHeUniform:
         return nn.initializer.KaimingUniform()
@@ -108,7 +107,7 @@ def lstm_layer(
     bias_initializer = get_initializer(bias_init)
 
     # Add forget_bias to forget gate bias
-    # Paddle LSTM weights are organized: Input, Forget, Cell, Output (Same as PyTorch)
+    # Paddle LSTM weights are organized: Input, Forget, Cell, Output
     for name, param in lstm.named_parameters():
         with paddle.no_grad():
             if "weight" in name:
@@ -143,7 +142,7 @@ def lstm_layer(
                 start = 1 * block_size
                 end = 2 * block_size
 
-                # bias_ih and bias_hh in Paddle/PyTorch are separated but structure is same.
+                # bias_ih and bias_hh are separated but structure is same
                 # param[start:end] += forget_bias
                 param[start:end] = param[start:end] + forget_bias
 
@@ -181,8 +180,7 @@ class LayerNorm(nn.Layer):
 
     def forward(self, layer_activations: paddle.Tensor) -> paddle.Tensor:
         mean = paddle.mean(layer_activations, axis=-1, keepdim=True)
-        # Paddle var default unbiased=True, but usually layer norm uses biased variance or simple mean square
-        # PyTorch code: mean((x-mean)^2). This is biased variance.
+        # Layer norm uses biased variance: mean((x-mean)^2)
         var = paddle.mean((layer_activations - mean) ** 2, axis=-1, keepdim=True)
         return (layer_activations - mean) / (paddle.sqrt(var + 1e-5))
 
