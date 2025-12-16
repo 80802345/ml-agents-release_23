@@ -9,20 +9,15 @@ import numpy as np
 from mlagents_envs.base_env import BehaviorSpec
 from mlagents_envs.logging_util import get_logger
 from mlagents.trainers.buffer import BufferKey, RewardSignalUtil
-# 确保引用的是 Paddle 版本
 from mlagents.trainers.trainer.on_policy_trainer import OnPolicyTrainer
 from mlagents.trainers.policy.policy import Policy
 from mlagents.trainers.trainer.trainer_utils import get_gae
-
-# 引用 Paddle 版本的优化器和策略
 from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
 from mlagents.trainers.policy.paddle_policy import PaddlePolicy
 from mlagents.trainers.ppo.optimizer_paddle import PaddlePPOOptimizer, PPOSettings
 from mlagents.trainers.trajectory import Trajectory
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.settings import TrainerSettings
-
-# 引用 Paddle 版本的网络定义
 from mlagents.trainers.paddle_entities.networks import SimpleActor, SharedActorCritic
 
 logger = get_logger(__name__)
@@ -144,7 +139,7 @@ class PPOTrainer(OnPolicyTrainer):
                 lambd=self.hyperparameters.lambd,
             )
             local_return = local_advantage + local_value_estimates
-            
+
             agent_buffer_trajectory[RewardSignalUtil.returns_key(name)].set(
                 local_return
             )

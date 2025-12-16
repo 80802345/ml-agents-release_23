@@ -11,7 +11,6 @@ from mlagents_envs.logging_util import get_logger
 from mlagents.trainers.buffer import BufferKey
 from mlagents.trainers.trainer.rl_trainer import RLTrainer
 from mlagents.trainers.policy import Policy
-# 确保引用的是 Paddle 版本的优化器基类
 from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.settings import TrainerSettings, OnPolicyHyperparamSettings
@@ -95,7 +94,7 @@ class OnPolicyTrainer(RLTrainer):
         )
         num_epoch = self.hyperparameters.num_epoch
         batch_update_stats = defaultdict(list)
-        
+
         for _ in range(num_epoch):
             self.update_buffer.shuffle(sequence_length=self.policy.sequence_length)
             buffer = self.update_buffer
