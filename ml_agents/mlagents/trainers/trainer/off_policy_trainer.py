@@ -13,7 +13,7 @@ from mlagents_envs.logging_util import get_logger
 from mlagents_envs.timers import timed
 from mlagents.trainers.buffer import RewardSignalUtil
 from mlagents.trainers.policy import Policy
-from mlagents.trainers.optimizer.torch_optimizer import TorchOptimizer
+from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
 from mlagents.trainers.trainer.rl_trainer import RLTrainer
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.settings import TrainerSettings, OffPolicyHyperparamSettings

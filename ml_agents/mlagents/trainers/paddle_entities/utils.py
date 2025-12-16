@@ -367,13 +367,11 @@ class ModelUtils:
         for name, head in values.items():
             old_val_tensor = old_values[name]
             returns_tensor = returns[name]
-            # torch.clamp -> paddle.clip
             clipped_value_estimate = old_val_tensor + paddle.clip(
                 head - old_val_tensor, -1 * epsilon, epsilon
             )
             v_opt_a = (returns_tensor - head) ** 2
             v_opt_b = (returns_tensor - clipped_value_estimate) ** 2
-            # torch.max -> paddle.maximum (element-wise)
             value_loss = ModelUtils.masked_mean(paddle.maximum(v_opt_a, v_opt_b), loss_masks)
             value_losses.append(value_loss)
         value_loss = paddle.mean(paddle.stack(value_losses))
