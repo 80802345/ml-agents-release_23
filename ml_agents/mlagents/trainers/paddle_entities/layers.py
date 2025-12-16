@@ -3,10 +3,8 @@ from typing import Tuple
 from enum import Enum
 import paddle
 import paddle.nn as nn
-import math
 
-# 如果你有对应的 paddle 版 model_serialization，请修改这里。
-# 否则建议将 is_exporting() 设为默认返回 False 的伪函数。
+
 try:
     from mlagents.trainers.paddle_entities.model_serialization import exporting_to_onnx
 except ImportError:
@@ -27,7 +25,7 @@ class Swish(nn.Layer):
 
     def forward(self, data: paddle.Tensor) -> paddle.Tensor:
         return self._impl(data)
-    
+
 class Initialization(Enum):
     Zero = 0
     XavierGlorotNormal = 1
@@ -69,11 +67,11 @@ def linear_layer(
     """
     # Create layer (Paddle initializes by default, but we will overwrite)
     layer = nn.Linear(input_size, output_size)
-    
+
     # Apply Kernel Init
     initializer = get_initializer(kernel_init)
     initializer(layer.weight)
-    
+
     # Apply Kernel Gain
     if kernel_gain != 1.0:
         with paddle.no_grad():
@@ -82,7 +80,7 @@ def linear_layer(
     # Apply Bias Init
     bias_initializer = get_initializer(bias_init)
     bias_initializer(layer.bias)
-    
+
     return layer
 
 
@@ -100,9 +98,9 @@ def lstm_layer(
     Paddle nn.LSTM time_major=False is equivalent to batch_first=True.
     """
     lstm = nn.LSTM(
-        input_size, 
-        hidden_size, 
-        num_layers, 
+        input_size,
+        hidden_size,
+        num_layers,
         time_major=not batch_first # Paddle uses time_major
     )
 
@@ -118,20 +116,20 @@ def lstm_layer(
                 for idx in range(4):
                     block_size = param.shape[0] // 4
                     # Create a temporary view/slice to initialize
-                    # Note: Paddle in-place modification on slice can be tricky, 
-                    # usually easiest to create the tensor and assign back if possible, 
+                    # Note: Paddle in-place modification on slice can be tricky,
+                    # usually easiest to create the tensor and assign back if possible,
                     # or use set_value for specific blocks if the initializer supports it.
                     # Here we use a simpler approach: Apply init to a temp tensor and assign.
-                    
+
                     # However, standard initializers operate on the whole Parameter.
                     # Since we need to init sub-blocks, we have to generate data and assign.
-                    
-                    # Hack: Initialize the whole tensor first if it's the first block, 
-                    # but different blocks might need different inits? 
+
+                    # Hack: Initialize the whole tensor first if it's the first block,
+                    # but different blocks might need different inits?
                     # The original code applies the SAME initializer to all blocks.
                     # So we can just initialize the whole tensor at once.
                     pass
-                
+
                 # Since the original code applies the SAME kernel_init to all 4 blocks,
                 # we can just initialize the entire weight parameter at once.
                 kernel_initializer(param)
@@ -139,12 +137,12 @@ def lstm_layer(
             if "bias" in name:
                 # Initialize all biases
                 bias_initializer(param)
-                
+
                 # Add forget bias to the Forget Gate (Index 1)
                 block_size = param.shape[0] // 4
                 start = 1 * block_size
                 end = 2 * block_size
-                
+
                 # bias_ih and bias_hh in Paddle/PyTorch are separated but structure is same.
                 # param[start:end] += forget_bias
                 param[start:end] = param[start:end] + forget_bias
@@ -274,21 +272,21 @@ class LSTM(MemoryModule):
         # c0: (num_layers * num_directions, batch, hidden_size)
         # Paddle LSTM requires (h0, c0) as a tuple
         # Assuming memories shape is [1, batch, memory_size] based on single layer assumption in mlagents usually
-        
-        # We assume memories is [batch, 1, memory_size] or [1, batch, memory_size]? 
+
+        # We assume memories is [batch, 1, memory_size] or [1, batch, memory_size]?
         # ML-Agents logic: memories is usually [1, batch, size] for LSTM state if num_layers=1
-        
+
         # Splitting hidden and cell state
         h0 = memories[:, :, : self.hidden_size]
         c0 = memories[:, :, self.hidden_size :]
-        
+
         # Ensure contiguous memory if necessary (clone helps detached form graph or re-layout)
         h0 = h0.clone()
         c0 = c0.clone()
 
         hidden = (h0, c0)
         lstm_out, (h_out, c_out) = self.lstm(input_tensor, hidden)
-        
+
         # Concatenate hidden and cell state back together
         output_mem = paddle.concat([h_out, c_out], axis=-1)
 

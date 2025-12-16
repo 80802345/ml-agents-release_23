@@ -3,10 +3,7 @@ import abc
 import paddle
 import paddle.nn as nn
 
-# 假设你已经将 mlagents_envs 和 mlagents.trainers 下的其他文件也进行了相应转换
 from mlagents_envs.base_env import ActionSpec, ObservationSpec, ObservationType
-
-# 请确保以下依赖文件你也已经转换为了 Paddle 版本
 from mlagents.trainers.paddle_entities.action_model import ActionModel
 from mlagents.trainers.paddle_entities.agent_action import AgentAction
 from mlagents.trainers.settings import NetworkSettings, EncoderType, ConditioningType
@@ -323,7 +320,7 @@ class MultiAgentNetworkBody(nn.Layer):
             self.lstm = LSTM(self.h_size, self.m_size)
         else:
             self.lstm = None  # type: ignore
-        
+
         # PyTorch 的 nn.Parameter(..., requires_grad=False) 对应 Paddle 的 register_buffer
         self.register_buffer("_current_max_agents", paddle.to_tensor(1, dtype='float32'))
 
@@ -364,22 +361,9 @@ class MultiAgentNetworkBody(nn.Layer):
             no_nan_obs = []
             for obs in single_agent_obs:
                 new_obs = obs.clone()
-                # Paddle 索引操作，将 NaN 替换为 0
-                # 注意：Paddle 的 Tensor 索引可能需要 boolean mask 配合
                 mask = attention_mask.cast('bool')[:, i_agent]
-                # 这里假设 mask 的维度和 obs 的 batch 维匹配
-                # 简单实现：使用 where
-                # 但这里是 In-place 修改，Paddle 2.x 支持基本索引
-                # 若需要严谨实现，建议 mask 扩充维度后相乘，或者用 where
-                # 下面尝试直接赋值（类似 Torch）
-                # new_obs[mask, ::] = 0.0 # 这种写法在 Paddle 某些版本可能不支持
-                
-                # 更稳健的写法：
                 if mask.any():
-                    # 这里逻辑比较复杂，为了保持与原代码逻辑一致，我们尽量用 mask 乘法替代
-                    # 将 mask 扩展到与 new_obs 相同维度
                     expanded_mask = mask.unsqueeze([-1 for _ in range(new_obs.ndim - 1)])
-                    # 广播
                     expanded_mask = paddle.expand(expanded_mask, new_obs.shape)
                     new_obs = paddle.where(expanded_mask, paddle.zeros_like(new_obs), new_obs)
 
@@ -395,7 +379,7 @@ class MultiAgentNetworkBody(nn.Layer):
         memories: Optional[paddle.Tensor] = None,
         sequence_length: int = 1,
     ) -> Tuple[paddle.Tensor, paddle.Tensor]:
-        
+
         self_attn_masks = []
         self_attn_inputs = []
         concat_f_inp = []
@@ -429,7 +413,7 @@ class MultiAgentNetworkBody(nn.Layer):
 
         flipped_masks = 1 - paddle.concat(self_attn_masks, axis=1)
         num_agents = paddle.sum(flipped_masks, axis=1, keepdim=True)
-        
+
         current_max = paddle.max(num_agents)
         if current_max.item() > self._current_max_agents.item():
              # 更新 buffer
@@ -562,11 +546,11 @@ class SimpleActor(nn.Layer, Actor):
     ):
         super().__init__()
         self.action_spec = action_spec
-        
+
         # 在 Paddle 中，对应 requires_grad=False 的 Parameter，通常使用 register_buffer
         # 这样它们会包含在 state_dict 中，但不会被优化器更新
         self.register_buffer(
-            "version_number", 
+            "version_number",
             paddle.to_tensor([self.MODEL_EXPORT_VERSION], dtype='float32')
         )
         self.register_buffer(
@@ -590,13 +574,13 @@ class SimpleActor(nn.Layer, Actor):
                 ], dtype='float32'
             )
         )
-        
+
         self.network_body = NetworkBody(observation_specs, network_settings)
         if network_settings.memory is not None:
             self.encoding_size = network_settings.memory.memory_size // 2
         else:
             self.encoding_size = network_settings.hidden_units
-            
+
         self.register_buffer(
             "memory_size_vector",
             paddle.to_tensor([int(self.network_body.memory_size)], dtype='float32')
@@ -678,7 +662,7 @@ class SimpleActor(nn.Layer, Actor):
             deterministic_cont_action_out,
             deterministic_disc_action_out,
         ) = self.action_model.get_action_out(encoding, masks)
-        
+
         export_out = [self.version_number, self.memory_size_vector]
         if self.action_spec.continuous_size > 0:
             export_out += [

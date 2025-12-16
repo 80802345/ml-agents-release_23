@@ -27,7 +27,7 @@ class StatusType(Enum):
 class StatusMetaData:
     stats_format_version: str = STATUS_FORMAT_VERSION
     mlagents_version: str = __version__
-    torch_version: str = paddle.__version__
+    paddle_version: str = paddle.__version__
 
     def to_dict(self) -> Dict[str, str]:
         return cattr.unstructure(self)
@@ -46,9 +46,9 @@ class StatusMetaData:
             logger.warning(
                 "Checkpoint was loaded from a different version of ML-Agents. Some things may not resume properly."
             )
-        if self.torch_version != other.torch_version:
+        if self.paddle_version != other.paddle_version:
             logger.warning(
-                "PyTorch checkpoint was saved with a different version of PyTorch. Model may not resume properly."
+                "PaddlePaddle checkpoint was saved with a different version of PaddlePaddle. Model may not resume properly."
             )
 
 

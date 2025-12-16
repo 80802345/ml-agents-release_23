@@ -5,8 +5,6 @@ import math
 import paddle
 import paddle.nn as nn
 import paddle.distribution as p_dist
-
-# 假设你已经将 layers.py 转换为了 paddle 版本
 from mlagents.trainers.paddle_entities.layers import linear_layer, Initialization
 
 EPSILON = 1e-7  # Small value to avoid divide by zero

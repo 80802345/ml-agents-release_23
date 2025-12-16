@@ -4,7 +4,6 @@ import paddle
 import paddle.nn as nn
 
 from mlagents.trainers.buffer import AgentBuffer, BufferKey
-# Ensure base_reward_provider is converted
 from mlagents.trainers.paddle_entities.components.reward_providers.base_reward_provider import (
     BaseRewardProvider,
 )
@@ -12,7 +11,6 @@ from mlagents.trainers.settings import GAILSettings
 from mlagents_envs.base_env import BehaviorSpec
 from mlagents_envs import logging_util
 
-# Ensure these are converted
 from mlagents.trainers.paddle_entities.utils import ModelUtils
 from mlagents.trainers.paddle_entities.agent_action import AgentAction
 from mlagents.trainers.paddle_entities.action_flattener import ActionFlattener
@@ -31,11 +29,11 @@ class GAILRewardProvider(BaseRewardProvider):
         self._discriminator_network = DiscriminatorNetwork(specs, settings)
         # Paddle handles device placement globally
         # self._discriminator_network.to(default_device())
-        
+
         _, self._demo_buffer = demo_to_buffer(
             settings.demo_path, 1, specs
         )  # This is supposed to be the sequence length but we do not have access here
-        
+
         self.optimizer = paddle.optimizer.Adam(
             learning_rate=settings.learning_rate,
             parameters=self._discriminator_network.parameters()
@@ -65,11 +63,11 @@ class GAILRewardProvider(BaseRewardProvider):
         loss, stats_dict = self._discriminator_network.compute_loss(
             mini_batch, expert_batch
         )
-        
+
         self.optimizer.clear_grad()
         loss.backward()
         self.optimizer.step()
-        
+
         return stats_dict
 
     def get_modules(self):
@@ -113,14 +111,14 @@ class DiscriminatorNetwork(nn.Layer):
                 default_initializer=nn.initializer.Constant(1.0),
                 is_bias=False
             ) # requires_grad=True by default
-            
+
             self._z_mu_layer = linear_layer(
                 encoder_settings.hidden_units,
                 self.z_size,
                 kernel_init=Initialization.KaimingHeNormal,
                 kernel_gain=0.1,
             )
-            
+
             # requires_grad=False -> stop_gradient=True
             self._beta = self.create_parameter(
                 shape=[1],
@@ -161,19 +159,19 @@ class DiscriminatorNetwork(nn.Layer):
             dones = ModelUtils.list_to_tensor(
                 mini_batch[BufferKey.DONE], dtype='float32'
             ).unsqueeze(1)
-            
+
             action_inputs = paddle.concat([actions, dones], axis=1)
             hidden, _ = self.encoder(inputs, action_inputs)
         else:
             hidden, _ = self.encoder(inputs)
-            
+
         z_mu: Optional[paddle.Tensor] = None
         if self._settings.use_vail:
             z_mu = self._z_mu_layer(hidden)
             # paddle.randn_like or paddle.randn(shape)
             noise = paddle.randn(z_mu.shape)
             hidden = z_mu + noise * self._z_sigma * float(use_vail_noise)
-            
+
         estimate = self._estimator(hidden)
         return estimate, z_mu
 
@@ -185,25 +183,25 @@ class DiscriminatorNetwork(nn.Layer):
         """
         total_loss = paddle.zeros([1])
         stats_dict: Dict[str, np.ndarray] = {}
-        
+
         policy_estimate, policy_mu = self.compute_estimate(
             policy_batch, use_vail_noise=True
         )
         expert_estimate, expert_mu = self.compute_estimate(
             expert_batch, use_vail_noise=True
         )
-        
+
         stats_dict["Policy/GAIL Policy Estimate"] = policy_estimate.mean().item()
         stats_dict["Policy/GAIL Expert Estimate"] = expert_estimate.mean().item()
-        
+
         discriminator_loss = -(
             paddle.log(expert_estimate + self.EPSILON)
             + paddle.log(1.0 - policy_estimate + self.EPSILON)
         ).mean()
-        
+
         stats_dict["Losses/GAIL Loss"] = discriminator_loss.item()
         total_loss += discriminator_loss
-        
+
         if self._settings.use_vail:
             # KL divergence loss
             kl_loss = paddle.mean(
@@ -217,7 +215,7 @@ class DiscriminatorNetwork(nn.Layer):
                 )
             )
             vail_loss = self._beta * (kl_loss - self.mutual_information)
-            
+
             # Manual update of non-trainable parameter _beta
             with paddle.no_grad():
                 beta_new = paddle.maximum(
@@ -229,7 +227,7 @@ class DiscriminatorNetwork(nn.Layer):
             total_loss += vail_loss
             stats_dict["Policy/GAIL Beta"] = self._beta.item()
             stats_dict["Losses/GAIL KL Loss"] = kl_loss.item()
-            
+
         if self.gradient_penalty_weight > 0.0:
             gradient_magnitude_loss = (
                 self.gradient_penalty_weight
@@ -237,7 +235,7 @@ class DiscriminatorNetwork(nn.Layer):
             )
             stats_dict["Policy/GAIL Grad Mag Loss"] = gradient_magnitude_loss.item()
             total_loss += gradient_magnitude_loss
-            
+
         return total_loss, stats_dict
 
     def compute_gradient_magnitude(
@@ -249,18 +247,18 @@ class DiscriminatorNetwork(nn.Layer):
         policy_inputs = self.get_state_inputs(policy_batch)
         expert_inputs = self.get_state_inputs(expert_batch)
         interp_inputs = []
-        
+
         for policy_input, expert_input in zip(policy_inputs, expert_inputs):
             obs_epsilon = paddle.rand(policy_input.shape)
             interp_input = obs_epsilon * policy_input + (1 - obs_epsilon) * expert_input
             interp_input.stop_gradient = False  # Enable gradient calculation
             interp_inputs.append(interp_input)
-            
+
         if self._settings.use_actions:
             policy_action = self.get_action_input(policy_batch)
             expert_action = self.get_action_input(expert_batch)
             action_epsilon = paddle.rand(policy_action.shape)
-            
+
             policy_dones = ModelUtils.list_to_tensor(
                 policy_batch[BufferKey.DONE], dtype='float32'
             ).unsqueeze(1)
@@ -268,7 +266,7 @@ class DiscriminatorNetwork(nn.Layer):
                 expert_batch[BufferKey.DONE], dtype='float32'
             ).unsqueeze(1)
             dones_epsilon = paddle.rand(policy_dones.shape)
-            
+
             action_inputs = paddle.concat(
                 [
                     action_epsilon * policy_action
@@ -290,35 +288,35 @@ class DiscriminatorNetwork(nn.Layer):
             z_mu = self._z_mu_layer(hidden)
             noise = paddle.randn(z_mu.shape)
             hidden = z_mu + noise * self._z_sigma * float(use_vail_noise)
-            
+
         estimate = self._estimator(hidden).squeeze(1).sum()
-        
+
         # Calculate gradients
         # paddle.grad returns a list of gradients corresponding to inputs
         gradients = paddle.grad(
-            outputs=[estimate], 
-            inputs=encoder_input, 
+            outputs=[estimate],
+            inputs=encoder_input,
             create_graph=True,
             retain_graph=True
         )
-        
+
         # Norm's gradient could be NaN at 0. Use our own safe_norm
         # We need to aggregate gradients from all inputs (obs + actions)?
         # Typically gradient penalty is on the input space magnitude.
-        # If multiple inputs, we sum their norms or concat? 
-        # The original code takes gradients[0] implying it might only look at the first input 
+        # If multiple inputs, we sum their norms or concat?
+        # The original code takes gradients[0] implying it might only look at the first input
         # OR `encoder_input` was passed as a tuple, so `torch.autograd.grad` returns tuple.
         # Original: gradient = torch.autograd.grad(..., encoder_input, ...)[0]
-        # Wait, if encoder_input is a tuple of multiple tensors (e.g. visual + vector + action), 
-        # grabbing [0] only penalizes the first observation? 
+        # Wait, if encoder_input is a tuple of multiple tensors (e.g. visual + vector + action),
+        # grabbing [0] only penalizes the first observation?
         # If the original code did that, we follow it.
-        # However, ML-Agents usually has a specific structure. 
+        # However, ML-Agents usually has a specific structure.
         # If `interp_inputs` is a list, `encoder_input` is a list.
         # Let's verify `torch.autograd.grad` behavior: returns tuple of gradients matching inputs.
-        
+
         # If we follow the original code strictly:
-        gradient = gradients[0] 
-        
+        gradient = gradients[0]
+
         safe_norm = (paddle.sum(gradient**2, axis=1) + self.EPSILON).sqrt()
         gradient_mag = paddle.mean((safe_norm - 1) ** 2)
         return gradient_mag

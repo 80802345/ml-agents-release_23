@@ -2,8 +2,6 @@ from typing import List, Optional, NamedTuple
 import itertools
 import numpy as np
 import paddle
-
-# 假设你已经转换了以下模块
 from mlagents.trainers.buffer import AgentBuffer, BufferKey
 from mlagents.trainers.paddle_entities.utils import ModelUtils
 from mlagents_envs.base_env import ActionTuple
@@ -151,13 +149,13 @@ class AgentAction(NamedTuple):
             discrete_oh = paddle.concat(discrete_oh, axis=1)
         else:
             discrete_oh = paddle.to_tensor([], dtype='float32')
-        
+
         # Concatenate continuous and discrete
         # Handle cases where one might be empty/None
         tensors_to_cat = []
         if self.continuous_tensor is not None and self.continuous_tensor.size > 0:
              tensors_to_cat.append(self.continuous_tensor)
-        
+
         if discrete_oh.size > 0:
              tensors_to_cat.append(discrete_oh)
 

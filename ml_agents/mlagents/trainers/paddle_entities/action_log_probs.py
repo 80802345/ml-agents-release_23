@@ -2,7 +2,6 @@ from typing import List, Optional, NamedTuple
 import numpy as np
 import paddle
 
-# 确保引用的是你之前转换过的 paddle 版本文件
 from mlagents.trainers.paddle_entities.utils import ModelUtils
 from mlagents.trainers.buffer import AgentBuffer, BufferKey
 from mlagents_envs.base_env import _ActionTupleBase

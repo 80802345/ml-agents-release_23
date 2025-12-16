@@ -2,7 +2,6 @@ import numpy as np
 from typing import Dict
 
 from mlagents.trainers.buffer import AgentBuffer, BufferKey
-# 确保引用的是你之前转换过的 paddle 版本文件
 from mlagents.trainers.paddle_entities.components.reward_providers.base_reward_provider import (
     BaseRewardProvider,
 )
@@ -26,7 +25,7 @@ class ExtrinsicRewardProvider(BaseRewardProvider):
             mini_batch[BufferKey.ENVIRONMENT_REWARDS], dtype=np.float32
         )
         total_rewards = indiv_rewards
-        
+
         # POCA logic: Add groupmate rewards if enabled
         if BufferKey.GROUPMATE_REWARDS in mini_batch and self.add_groupmate_rewards:
             groupmate_rewards_list = mini_batch[BufferKey.GROUPMATE_REWARDS]
@@ -34,7 +33,7 @@ class ExtrinsicRewardProvider(BaseRewardProvider):
                 [sum(_rew) for _rew in groupmate_rewards_list], dtype=np.float32
             )
             total_rewards += groupmate_rewards_sum
-            
+
         # Add group shared rewards
         if BufferKey.GROUP_REWARD in mini_batch:
             group_rewards = np.array(
@@ -42,7 +41,7 @@ class ExtrinsicRewardProvider(BaseRewardProvider):
             )
             # Add all the group rewards to the individual rewards
             total_rewards += group_rewards
-            
+
         return total_rewards
 
     def update(self, mini_batch: AgentBuffer) -> Dict[str, np.ndarray]:

@@ -1,5 +1,4 @@
 import numpy as np
-# from mlagents.torch_utils import torch
 from mlagents.paddle_utils import paddle
 from abc import ABC, abstractmethod
 from typing import Dict

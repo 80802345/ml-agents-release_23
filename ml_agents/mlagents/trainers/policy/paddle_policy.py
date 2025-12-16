@@ -10,7 +10,6 @@ from mlagents_envs.base_env import DecisionSteps, BehaviorSpec
 from mlagents_envs.timers import timed
 
 from mlagents.trainers.settings import NetworkSettings
-# Ensure you have this class converted in paddle_entities/layers.py or networks.py
 from mlagents.trainers.paddle_entities.networks import GlobalSteps
 from mlagents.trainers.paddle_entities.utils import ModelUtils
 

@@ -4,7 +4,6 @@ from typing import List
 from mlagents.plugins import ML_AGENTS_STATS_WRITER
 from mlagents.trainers.settings import RunOptions
 from mlagents.trainers.stats import StatsWriter
-# 核心修改1：替换TensorboardWriter为VisualDLWriter，保留其他Writer
 from mlagents.trainers.stats import VisualDLWriter, GaugeWriter, ConsoleWriter
 from mlagents_envs import logging_util
 
@@ -62,7 +61,6 @@ def register_stats_writer_plugins(run_options: RunOptions) -> List[StatsWriter]:
                 f"Error initializing StatsWriter plugins for {entry_point.name}. This plugin will not be used."
             )
 
-    # 核心修改3：兼容插件未返回任何Writer的情况，兜底使用默认Writer
     if not all_stats_writers:
         logger.info("No valid StatsWriter plugins found, using default VisualDL/Console/Gauge writers.")
         all_stats_writers = get_default_stats_writers(run_options)

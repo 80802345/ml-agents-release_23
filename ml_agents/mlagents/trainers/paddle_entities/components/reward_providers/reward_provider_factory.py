@@ -3,7 +3,6 @@ from mlagents.trainers.exception import UnityTrainerException
 
 from mlagents.trainers.settings import RewardSignalSettings, RewardSignalType
 
-# 修改引用路径指向 paddle_entities
 from mlagents.trainers.paddle_entities.components.reward_providers.base_reward_provider import (
     BaseRewardProvider,
 )
@@ -16,7 +15,6 @@ from mlagents.trainers.paddle_entities.components.reward_providers.curiosity_rew
 from mlagents.trainers.paddle_entities.components.reward_providers.gail_reward_provider import (
     GAILRewardProvider,
 )
-# 假设你也会将 RNDRewardProvider 转换到相应目录
 from mlagents.trainers.paddle_entities.components.reward_providers.rnd_reward_provider import (
     RNDRewardProvider,
 )

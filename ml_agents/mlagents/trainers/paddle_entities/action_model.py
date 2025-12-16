@@ -2,7 +2,6 @@ from typing import List, Tuple, NamedTuple, Optional
 import paddle
 import paddle.nn as nn
 
-# 假设你已经将相关的依赖文件转换到了 paddle_entities 目录下
 from mlagents.trainers.paddle_entities.distributions import (
     DistInstance,
     DiscreteDistInstance,

@@ -11,7 +11,6 @@ from mlagents_envs.base_env import BehaviorSpec
 from mlagents.trainers.policy import Policy
 
 from mlagents.trainers.trainer import Trainer
-# from mlagents.trainers.optimizer.torch_optimizer import TorchOptimizer
 from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
 from mlagents.trainers.trajectory import Trajectory
 from mlagents.trainers.agent_processor import AgentManagerQueue

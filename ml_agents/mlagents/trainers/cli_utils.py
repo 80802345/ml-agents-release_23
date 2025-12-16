@@ -215,18 +215,6 @@ def _create_parser() -> argparse.ArgumentParser:
         action=DetectDefault,
     )
     argparser.add_argument(
-        "--torch",
-        default=False,
-        action=RaiseRemovedWarning,
-        help="(Removed) Use the PyTorch framework.",
-    )
-    argparser.add_argument(
-        "--tensorflow",
-        default=False,
-        action=RaiseRemovedWarning,
-        help="(Removed) Use the TensorFlow framework.",
-    )
-    argparser.add_argument(
         "--results-dir",
         default="results",
         action=DetectDefault,
@@ -306,13 +294,13 @@ def _create_parser() -> argparse.ArgumentParser:
         "observations.",
     )
 
-    torch_conf = argparser.add_argument_group(title="Torch Configuration")
-    torch_conf.add_argument(
-        "--torch-device",
+    paddle_conf = argparser.add_argument_group(title="Paddle Configuration")
+    paddle_conf.add_argument(
+        "--paddle-device",
         default=None,
         dest="device",
         action=DetectDefault,
-        help='Settings for the default torch.device used in training, for example, "cpu", "cuda", or "cuda:0"',
+        help='Settings for the default paddle.device used in training, for example, "cpu", "cuda", or "cuda:0"',
     )
     return argparser
 

@@ -2,7 +2,6 @@ from typing import Dict
 import numpy as np
 import paddle
 
-# Ensure these point to your converted modules
 from mlagents.trainers.policy.paddle_policy import PaddlePolicy
 from mlagents.trainers.demo_loader import demo_to_buffer
 from mlagents.trainers.settings import BehavioralCloningSettings, ScheduleType
@@ -40,13 +39,13 @@ class BCModule:
         self.decay_learning_rate = ModelUtils.DecayedValue(
             learning_rate_schedule, self.current_lr, 1e-10, self._anneal_steps
         )
-        
+
         # Paddle optimizer takes parameters list
         params = self.policy.actor.parameters()
         self.optimizer = paddle.optimizer.Adam(
             learning_rate=self.current_lr, parameters=params
         )
-        
+
         _, self.demonstration_buffer = demo_to_buffer(
             settings.demo_path, policy.sequence_length, policy.behavior_spec
         )
@@ -185,10 +184,10 @@ class BCModule:
         bc_loss = self._behavioral_cloning_loss(
             selected_actions, log_probs, expert_actions
         )
-        
+
         self.optimizer.clear_grad()
         bc_loss.backward()
         self.optimizer.step()
-        
+
         run_out = {"loss": float(bc_loss.item())}
         return run_out

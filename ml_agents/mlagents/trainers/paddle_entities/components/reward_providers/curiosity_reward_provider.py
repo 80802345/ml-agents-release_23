@@ -4,7 +4,6 @@ import paddle
 import paddle.nn as nn
 
 from mlagents.trainers.buffer import AgentBuffer, BufferKey
-# Ensure you have a base reward provider conversion or stub
 from mlagents.trainers.paddle_entities.components.reward_providers.base_reward_provider import (
     BaseRewardProvider,
 )
@@ -13,7 +12,6 @@ from mlagents.trainers.settings import CuriositySettings
 from mlagents_envs.base_env import BehaviorSpec
 from mlagents_envs import logging_util
 
-# Imports from your converted paddle_entities
 from mlagents.trainers.paddle_entities.agent_action import AgentAction
 from mlagents.trainers.paddle_entities.action_flattener import ActionFlattener
 from mlagents.trainers.paddle_entities.utils import ModelUtils
@@ -61,11 +59,11 @@ class CuriosityRewardProvider(BaseRewardProvider):
         loss = self.loss_multiplier * (
             self.beta * forward_loss + (1.0 - self.beta) * inverse_loss
         )
-        
+
         self.optimizer.clear_grad()
         loss.backward()
         self.optimizer.step()
-        
+
         return {
             "Losses/Curiosity Forward Loss": forward_loss.item(),
             "Losses/Curiosity Inverse Loss": inverse_loss.item(),
@@ -191,7 +189,7 @@ class CuriosityNetwork(nn.Layer):
                 actions.continuous_tensor - predicted_action.continuous
             ) ** 2
             sq_difference = paddle.sum(sq_difference, axis=1)
-            
+
             # Using ModelUtils.dynamic_partition
             _inverse_loss += paddle.mean(
                 ModelUtils.dynamic_partition(

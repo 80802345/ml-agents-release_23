@@ -145,7 +145,6 @@ class PaddleOptimizer(Optimizer):
         if agent_id in self.critic_memory_dict:
             memory = self.critic_memory_dict[agent_id]
         else:
-            # paddle.zeros 默认在当前设备创建 tensor
             memory = (
                 paddle.zeros([1, 1, self.critic.memory_size], dtype='float32')
                 if self.policy.use_recurrent
@@ -178,25 +177,20 @@ class PaddleOptimizer(Optimizer):
 
         # Store the memory for the next trajectory. This should NOT have a gradient.
 
-        #之后代码来自于##
         self.critic_memory_dict[agent_id] = next_memory
 
-        # 计算下一个观测的价值估计（bootstrapping）
         next_value_estimate, _ = self.critic.critic_pass(
             next_obs, next_memory, sequence_length=1
         )
 
-        # 将 Paddle 张量转换为 numpy 数组（对齐 Torch 的 to_numpy）
         value_estimates_np: Dict[str, np.ndarray] = {}
         next_value_estimate_np: Dict[str, float] = {}
 
         for name, estimate in value_estimates.items():
             value_estimates_np[name] = ModelUtils.to_numpy(estimate)
-            # 下一个价值估计转换为标量 float
             next_val_np = ModelUtils.to_numpy(next_value_estimate[name])
             next_value_estimate_np[name] = float(next_val_np.squeeze())
 
-        # 处理终止状态（done=True 时重置价值估计和记忆）
         if done:
             for k in next_value_estimate_np:
                 if not self.reward_signals[k].ignore_done:

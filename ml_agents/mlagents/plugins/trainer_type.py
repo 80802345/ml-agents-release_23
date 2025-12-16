@@ -5,8 +5,6 @@ from mlagents import plugins as mla_plugins
 from mlagents.plugins import ML_AGENTS_TRAINER_TYPE
 # from mlagents.trainers.poca.optimizer_torch import POCASettings
 # from mlagents.trainers.poca.trainer import POCATrainer
-# # try:
-# #     from mlagents.trainers.ppo.optimizer_torch import PPOSettings
 from mlagents.trainers.ppo.optimizer_paddle import PPOSettings
 from mlagents.trainers.ppo.trainer import PPOTrainer
 # from mlagents.trainers.sac.optimizer_torch import SACSettings

@@ -3,7 +3,6 @@ import threading
 import paddle
 
 from mlagents_envs.logging_util import get_logger
-from mlagents.trainers.settings import SerializationSettings
 import os
 os.environ["FLAGS_ENABLE_PIR_API"] = "False"
 os.environ["FLAGS_USE_PIR_COMPILER"] = "False"
@@ -143,7 +142,6 @@ class ModelSerializer:
         if self.policy.export_memory_size > 0:
             self.output_names += [TensorNames.recurrent_output]
 
-  # ================= 修改开始 =================
         # In Paddle, we use InputSpec to define shapes and names for export.
         # Structure must match SimpleActor.forward(inputs, masks, memories)
 
@@ -166,10 +164,9 @@ class ModelSerializer:
         )
 
         # --- Argument 3: memories (Tensor) ---
-        # [修改点]: 增加判断条件，只有当 memory_size > 0 时才添加这个 InputSpec
         if self.policy.export_memory_size > 0:
             mem_shape = list(dummy_memories.shape)
-            mem_shape[0] = None # batch dim
+            mem_shape[0] = None
             self.input_specs.append(
                 paddle.static.InputSpec(shape=mem_shape, dtype='float32', name=TensorNames.recurrent_in_placeholder)
             )
@@ -199,9 +196,9 @@ class ModelSerializer:
         # Ensure the model is in eval mode
 
 
-
+        #todo:onnx support
+        #
         # with exporting_to_onnx():
-        #     # Paddle's ONNX export is slightly different from Torch's.
         #     # We use paddle.onnx.export which handles the conversion.
         #     # Note: opset_version support depends on paddle2onnx version installed.
         #

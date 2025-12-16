@@ -3,7 +3,6 @@ import numpy as np
 import paddle
 import paddle.nn as nn
 
-# 假设你已经转换了以下模块
 from mlagents.trainers.paddle_entities.layers import LinearEncoder, Initialization
 from mlagents.trainers.paddle_entities.encoders import (
     SimpleVisualEncoder,

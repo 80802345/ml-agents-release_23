@@ -67,10 +67,10 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
         # Configure Paddle global settings (device, seed, etc.)
         # Assuming set_paddle_config exists in your paddle_utils, otherwise use paddle.set_device
         if hasattr(paddle_utils, 'set_paddle_config'):
-             paddle_utils.set_paddle_config(options.torch_settings) # keeping name for compatibility with settings object
+             paddle_utils.set_paddle_config(options.paddle_settings) # keeping name for compatibility with settings object
         else:
              # Basic fallback if utility function missing
-             device = options.torch_settings.device if options.torch_settings.device else "cpu"
+             device = options.paddle_settings.device if options.paddle_settings.device else "cpu"
              paddle_utils.paddle.set_device(device)
 
         checkpoint_settings = options.checkpoint_settings

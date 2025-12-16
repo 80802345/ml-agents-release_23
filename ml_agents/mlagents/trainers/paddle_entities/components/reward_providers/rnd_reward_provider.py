@@ -4,7 +4,6 @@ import paddle
 import paddle.nn as nn
 
 from mlagents.trainers.buffer import AgentBuffer
-# 确保引用的是你之前转换过的 paddle 版本文件
 from mlagents.trainers.paddle_entities.components.reward_providers.base_reward_provider import (
     BaseRewardProvider,
 )
@@ -12,8 +11,6 @@ from mlagents.trainers.settings import RNDSettings
 
 from mlagents_envs.base_env import BehaviorSpec
 from mlagents_envs import logging_util
-
-# 引用 Paddle 版本的实体
 from mlagents.trainers.paddle_entities.utils import ModelUtils
 from mlagents.trainers.paddle_entities.networks import NetworkBody
 from mlagents.trainers.trajectory import ObsUtil
@@ -31,7 +28,7 @@ class RNDRewardProvider(BaseRewardProvider):
         self._ignore_done = True
         self._random_network = RNDNetwork(specs, settings)
         self._training_network = RNDNetwork(specs, settings)
-        
+
         # Paddle handles device placement globally
         # self._random_network.to(default_device())
         # self._training_network.to(default_device())
@@ -53,16 +50,16 @@ class RNDRewardProvider(BaseRewardProvider):
         # Target network inference (fixed)
         with paddle.no_grad():
             target = self._random_network(mini_batch)
-        
+
         # Training network forward
         prediction = self._training_network(mini_batch)
-        
+
         loss = paddle.mean(paddle.sum((prediction - target) ** 2, axis=1))
-        
+
         self.optimizer.clear_grad()
         loss.backward()
         self.optimizer.step()
-        
+
         return {"Losses/RND Loss": float(loss.item())}
 
     def get_modules(self):

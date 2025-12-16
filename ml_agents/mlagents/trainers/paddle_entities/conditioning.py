@@ -3,7 +3,6 @@ from typing import List
 import paddle
 import paddle.nn as nn
 
-# Ensure you have converted layers.py to paddle_entities
 from mlagents.trainers.paddle_entities.layers import (
     linear_layer,
     Swish,
@@ -38,7 +37,7 @@ class HyperNetwork(nn.Layer):
             )
             layers.append(Swish())
             layer_in_size = layer_size
-        
+
         flat_output = linear_layer(
             layer_size,
             input_size * output_size,

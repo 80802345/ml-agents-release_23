@@ -2,7 +2,6 @@ from typing import List, Dict
 import paddle
 import paddle.nn as nn
 
-# 确保引用的是你之前转换过的 paddle 版本文件
 from mlagents.trainers.paddle_entities.layers import linear_layer
 
 
@@ -15,7 +14,7 @@ class ValueHeads(nn.Layer):
         for name in stream_names:
             value = linear_layer(input_size, output_size)
             _value_heads[name] = value
-        
+
         # torch.nn.ModuleDict -> paddle.nn.LayerDict
         self.value_heads = nn.LayerDict(_value_heads)
 

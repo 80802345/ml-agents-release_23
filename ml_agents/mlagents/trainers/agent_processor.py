@@ -5,8 +5,6 @@ from collections import defaultdict, Counter
 import queue
 
 from mlagents.paddle_utils import paddle
-# from mlagents.torch_utils import torch
-
 from mlagents_envs.base_env import (
     ActionTuple,
     DecisionSteps,
@@ -29,8 +27,6 @@ from mlagents.trainers.behavior_id_utils import (
     GlobalAgentId,
     GlobalGroupId,
 )
-# from mlagents.trainers.torch_entities.action_log_probs import LogProbsTuple
-# from mlagents.trainers.torch_entities.utils import ModelUtils
 from mlagents.trainers.paddle_entities.action_log_probs import LogProbsTuple
 from mlagents.trainers.paddle_entities.utils import ModelUtils
 T = TypeVar("T")

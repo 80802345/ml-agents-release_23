@@ -4,14 +4,12 @@ import paddle
 import paddle.nn as nn
 from mlagents.trainers.exception import UnityTrainerException
 
-# Ensure you have these modules converted as per previous steps
 from mlagents.trainers.paddle_entities.layers import (
     LinearEncoder,
     Initialization,
     linear_layer,
     LayerNorm,
 )
-# Assuming you have a dummy or real implementation of exporting_to_onnx
 try:
     from mlagents.trainers.paddle_entities.model_serialization import exporting_to_onnx
 except ImportError:
@@ -69,7 +67,7 @@ class MultiHeadAttention(nn.Layer):
 
         # permute -> transpose
         query = query.transpose([0, 2, 1, 3])  # (b, h, n_q, emb / h)
-        
+
         # The next few lines are equivalent to : key.permute([0, 2, 3, 1])
         # This is a hack from original ML-Agents to avoid ONNX/Sentis compression issues.
         # We preserve it for compatibility logic.
@@ -240,7 +238,7 @@ class ResidualSelfAttention(nn.Layer):
         # Residual
         output = self.fc_out(output) + inp
         output = self.residual_norm(output)
-        
+
         # Average Pooling
         # paddle.sum with dim -> axis
         numerator = paddle.sum(output * (1 - mask).reshape([-1, num_ent, 1]), axis=1)

@@ -4,7 +4,7 @@ from math import floor
 import paddle
 import paddle.nn as nn
 
-# Ensure you have converted layers.py
+
 from mlagents.trainers.paddle_entities.layers import linear_layer, Initialization, Swish
 
 

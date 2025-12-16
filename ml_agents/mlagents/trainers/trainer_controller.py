@@ -27,7 +27,6 @@ from mlagents.trainers.environment_parameter_manager import EnvironmentParameter
 from mlagents.trainers.trainer import TrainerFactory
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.agent_processor import AgentManager
-# from mlagents import torch_utils
 from mlagents.paddle_utils.globals import get_rank
 
 
@@ -48,7 +47,6 @@ class TrainerController:
         :param param_manager: EnvironmentParameterManager object which stores information about all
         environment parameters.
         :param train: Whether to train model, or only run inference.
-        :param training_seed: Seed to use for Numpy and Torch random number generation.
         :param threaded: Whether or not to run trainers in a separate thread. Disable for testing/debugging.
         """
         self.trainers: Dict[str, Trainer] = {}
@@ -65,7 +63,6 @@ class TrainerController:
         self.trainer_threads: List[threading.Thread] = []
         self.kill_trainers = False
         np.random.seed(training_seed)
-        # torch_utils.torch.manual_seed(training_seed)
         self.rank = get_rank()
 
     @timed

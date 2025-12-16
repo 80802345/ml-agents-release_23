@@ -4,7 +4,6 @@ import numpy as np
 
 from mlagents_envs.base_env import ActionTuple, BehaviorSpec, DecisionSteps
 from mlagents_envs.exception import UnityException
-
 from mlagents.trainers.action_info import ActionInfo
 from mlagents.trainers.settings import NetworkSettings
 from mlagents.trainers.behavior_id_utils import GlobalAgentId
