@@ -1,7 +1,3 @@
-# ## ML-Agent Learning (SAC)
-# Contains an implementation of SAC as described in https://arxiv.org/abs/1801.01290
-# and implemented in https://github.com/hill-a/stable-baselines
-
 from typing import cast
 
 import numpy as np
@@ -9,16 +5,15 @@ import numpy as np
 from mlagents_envs.logging_util import get_logger
 from mlagents_envs.base_env import BehaviorSpec
 from mlagents.trainers.buffer import BufferKey
-from mlagents.trainers.optimizer.torch_optimizer import TorchOptimizer
+from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
 from mlagents.trainers.trainer.off_policy_trainer import OffPolicyTrainer
-from mlagents.trainers.policy.torch_policy import TorchPolicy
+from mlagents.trainers.policy.paddle_policy import PaddlePolicy
 from mlagents.trainers.policy.policy import Policy
-from mlagents.trainers.sac.optimizer_torch import TorchSACOptimizer, SACSettings
+from mlagents.trainers.sac.optimizer_paddle import PaddleSACOptimizer, SACSettings
 from mlagents.trainers.trajectory import Trajectory, ObsUtil
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.settings import TrainerSettings
-
-from mlagents.trainers.torch_entities.networks import SimpleActor
+from mlagents.trainers.paddle_entities.networks import SimpleActor
 
 logger = get_logger(__name__)
 
@@ -30,7 +25,7 @@ TRAINER_NAME = "sac"
 class SACTrainer(OffPolicyTrainer):
     """
     The SACTrainer is an implementation of the SAC algorithm, with support
-    for discrete actions and recurrent networks.
+    for discrete actions and recurrent networks, using PaddlePaddle.
     """
 
     def __init__(
@@ -64,8 +59,8 @@ class SACTrainer(OffPolicyTrainer):
         )
 
         self.seed = seed
-        self.policy: TorchPolicy = None  # type: ignore
-        self.optimizer: TorchSACOptimizer = None  # type: ignore
+        self.policy: PaddlePolicy = None  # type: ignore
+        self.optimizer: PaddleSACOptimizer = None  # type: ignore
         self.hyperparameters: SACSettings = cast(
             SACSettings, trainer_settings.hyperparameters
         )
@@ -141,16 +136,16 @@ class SACTrainer(OffPolicyTrainer):
         if trajectory.done_reached:
             self._update_end_episode_stats(agent_id, self.optimizer)
 
-    def create_optimizer(self) -> TorchOptimizer:
-        return TorchSACOptimizer(  # type: ignore
-            cast(TorchPolicy, self.policy), self.trainer_settings  # type: ignore
+    def create_optimizer(self) -> PaddleOptimizer:
+        return PaddleSACOptimizer(  # type: ignore
+            cast(PaddlePolicy, self.policy), self.trainer_settings  # type: ignore
         )  # type: ignore
 
     def create_policy(
         self, parsed_behavior_id: BehaviorIdentifiers, behavior_spec: BehaviorSpec
-    ) -> TorchPolicy:
+    ) -> PaddlePolicy:
         """
-        Creates a policy with a PyTorch backend and SAC hyperparameters
+        Creates a policy with a Paddle backend and SAC hyperparameters
         :param parsed_behavior_id:
         :param behavior_spec: specifications for policy construction
         :return policy
@@ -158,7 +153,7 @@ class SACTrainer(OffPolicyTrainer):
         actor_cls = SimpleActor
         actor_kwargs = {"conditional_sigma": True, "tanh_squash": True}
 
-        policy = TorchPolicy(
+        policy = PaddlePolicy(
             self.seed,
             behavior_spec,
             self.trainer_settings.network_settings,

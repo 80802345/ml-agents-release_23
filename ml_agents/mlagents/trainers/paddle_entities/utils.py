@@ -300,7 +300,7 @@ class ModelUtils:
 
             transposed_tensor = paddle.transpose(tensor, perm)
             transposed_ones = paddle.transpose(paddle.ones_like(tensor), perm)
-            masks = masks.reshape((-1, 1))
+            # masks = masks.reshape((-1, 1))
             # 新增：将布尔掩码转为float32类型（与transposed_tensor一致）
             masks_float = masks.astype(paddle.float32)
             numerator = (transposed_tensor * masks_float).sum()

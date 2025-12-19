@@ -1,11 +1,8 @@
-# # Unity ML-Agents Toolkit
-# ## ML-Agents Learning (POCA)
-# Contains an implementation of MA-POCA.
-
 from collections import defaultdict
 from typing import cast, Dict, Union, Any, Type
 
 import numpy as np
+import paddle
 
 from mlagents_envs.side_channel.stats_side_channel import StatsAggregationMethod
 from mlagents_envs.logging_util import get_logger
@@ -14,13 +11,12 @@ from mlagents.trainers.buffer import BufferKey, RewardSignalUtil
 from mlagents.trainers.trainer.on_policy_trainer import OnPolicyTrainer
 from mlagents.trainers.trainer.trainer_utils import lambda_return
 from mlagents.trainers.policy import Policy
-from mlagents.trainers.policy.torch_policy import TorchPolicy
-from mlagents.trainers.poca.optimizer_torch import TorchPOCAOptimizer, POCASettings
+from mlagents.trainers.policy.paddle_policy import PaddlePolicy
+from mlagents.trainers.poca.optimizer_paddle import PaddlePOCAOptimizer, POCASettings
 from mlagents.trainers.trajectory import Trajectory
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.settings import TrainerSettings
-
-from mlagents.trainers.torch_entities.networks import SimpleActor, SharedActorCritic
+from mlagents.trainers.paddle_entities.networks import SimpleActor, SharedActorCritic
 
 logger = get_logger(__name__)
 
@@ -28,7 +24,7 @@ TRAINER_NAME = "poca"
 
 
 class POCATrainer(OnPolicyTrainer):
-    """The POCATrainer is an implementation of the MA-POCA algorithm."""
+    """The POCATrainer is an implementation of the MA-POCA algorithm using PaddlePaddle."""
 
     def __init__(
         self,
@@ -63,8 +59,8 @@ class POCATrainer(OnPolicyTrainer):
             POCASettings, self.trainer_settings.hyperparameters
         )
         self.seed = seed
-        self.policy: TorchPolicy = None  # type: ignore
-        self.optimizer: TorchPOCAOptimizer = None  # type: ignore
+        self.policy: PaddlePolicy = None  # type: ignore
+        self.optimizer: PaddlePOCAOptimizer = None  # type: ignore
         self.collected_group_rewards: Dict[str, int] = defaultdict(lambda: 0)
 
     def _process_trajectory(self, trajectory: Trajectory) -> None:
@@ -211,9 +207,9 @@ class POCATrainer(OnPolicyTrainer):
 
     def create_policy(
         self, parsed_behavior_id: BehaviorIdentifiers, behavior_spec: BehaviorSpec
-    ) -> TorchPolicy:
+    ) -> PaddlePolicy:
         """
-        Creates a policy with a PyTorch backend and POCA hyperparameters
+        Creates a policy with a Paddle backend and POCA hyperparameters
         :param parsed_behavior_id:
         :param behavior_spec: specifications for policy construction
         :return policy
@@ -224,7 +220,7 @@ class POCATrainer(OnPolicyTrainer):
             "tanh_squash": False,
         }
 
-        policy = TorchPolicy(
+        policy = PaddlePolicy(
             self.seed,
             behavior_spec,
             self.trainer_settings.network_settings,
@@ -233,8 +229,8 @@ class POCATrainer(OnPolicyTrainer):
         )
         return policy
 
-    def create_optimizer(self) -> TorchPOCAOptimizer:
-        return TorchPOCAOptimizer(self.policy, self.trainer_settings)
+    def create_optimizer(self) -> PaddlePOCAOptimizer:
+        return PaddlePOCAOptimizer(self.policy, self.trainer_settings)
 
     def get_policy(self, name_behavior_id: str) -> Policy:
         """

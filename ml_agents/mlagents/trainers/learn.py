@@ -52,6 +52,8 @@ def parse_command_line(
     argv: Optional[List[str]] = None,
 ) -> RunOptions:
     _, _ = register_trainer_plugins()
+    argv=[]
+    argv.append("./ParkingRobot.yaml")
     args = parser.parse_args(argv)
     return RunOptions.from_argparse(args)
 

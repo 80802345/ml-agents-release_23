@@ -1,13 +1,12 @@
 from typing import Dict, cast, List, Tuple, Optional
 from collections import defaultdict
 import attr
-
-from mlagents.trainers.torch_entities.components.reward_providers.extrinsic_reward_provider import (
+import numpy as np
+import paddle
+import paddle.nn as nn
+from mlagents.trainers.paddle_entities.components.reward_providers.extrinsic_reward_provider import (
     ExtrinsicRewardProvider,
 )
-import numpy as np
-from mlagents.torch_utils import torch, default_device
-
 from mlagents.trainers.buffer import (
     AgentBuffer,
     BufferKey,
@@ -17,8 +16,8 @@ from mlagents.trainers.buffer import (
 
 from mlagents_envs.timers import timed
 from mlagents_envs.base_env import ObservationSpec, ActionSpec
-from mlagents.trainers.policy.torch_policy import TorchPolicy
-from mlagents.trainers.optimizer.torch_optimizer import TorchOptimizer
+from mlagents.trainers.policy.paddle_policy import PaddlePolicy
+from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
 from mlagents.trainers.settings import (
     RewardSignalSettings,
     RewardSignalType,
@@ -27,11 +26,11 @@ from mlagents.trainers.settings import (
     OnPolicyHyperparamSettings,
     ScheduleType,
 )
-from mlagents.trainers.torch_entities.networks import Critic, MultiAgentNetworkBody
-from mlagents.trainers.torch_entities.decoders import ValueHeads
-from mlagents.trainers.torch_entities.agent_action import AgentAction
-from mlagents.trainers.torch_entities.action_log_probs import ActionLogProbs
-from mlagents.trainers.torch_entities.utils import ModelUtils
+from mlagents.trainers.paddle_entities.networks import Critic, MultiAgentNetworkBody
+from mlagents.trainers.paddle_entities.decoders import ValueHeads
+from mlagents.trainers.paddle_entities.agent_action import AgentAction
+from mlagents.trainers.paddle_entities.action_log_probs import ActionLogProbs
+from mlagents.trainers.paddle_entities.utils import ModelUtils
 from mlagents.trainers.trajectory import ObsUtil, GroupObsUtil
 
 from mlagents_envs.logging_util import get_logger
@@ -50,8 +49,8 @@ class POCASettings(OnPolicyHyperparamSettings):
     epsilon_schedule: ScheduleType = ScheduleType.LINEAR
 
 
-class TorchPOCAOptimizer(TorchOptimizer):
-    class POCAValueNetwork(torch.nn.Module, Critic):
+class PaddlePOCAOptimizer(PaddleOptimizer):
+    class POCAValueNetwork(nn.Layer, Critic):
         """
         The POCAValueNetwork uses the MultiAgentNetworkBody to compute the value
         and POCA baseline for a variable number of agents in a group that all
@@ -65,7 +64,7 @@ class TorchPOCAOptimizer(TorchOptimizer):
             network_settings: NetworkSettings,
             action_spec: ActionSpec,
         ):
-            torch.nn.Module.__init__(self)
+            nn.Layer.__init__(self)
             self.network_body = MultiAgentNetworkBody(
                 observation_specs, network_settings, action_spec
             )
@@ -86,21 +85,15 @@ class TorchPOCAOptimizer(TorchOptimizer):
 
         def baseline(
             self,
-            obs_without_actions: List[torch.Tensor],
-            obs_with_actions: Tuple[List[List[torch.Tensor]], List[AgentAction]],
-            memories: Optional[torch.Tensor] = None,
+            obs_without_actions: List[paddle.Tensor],
+            obs_with_actions: Tuple[List[List[paddle.Tensor]], List[AgentAction]],
+            memories: Optional[paddle.Tensor] = None,
             sequence_length: int = 1,
-        ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
+        ) -> Tuple[Dict[str, paddle.Tensor], paddle.Tensor]:
             """
             The POCA baseline marginalizes the action of the agent associated with self_obs.
             It calls the forward pass of the MultiAgentNetworkBody with the state action
             pairs of groupmates but just the state of the agent in question.
-            :param obs_without_actions: The obs of the agent for which to compute the baseline.
-            :param obs_with_actions: Tuple of observations and actions for all groupmates.
-            :param memories: If using memory, a Tensor of initial memories.
-            :param sequence_length: If using memory, the sequence length.
-
-            :return: A Tuple of Dict of reward stream to tensor and critic memories.
             """
             (obs, actions) = obs_with_actions
             encoding, memories = self.network_body(
@@ -118,17 +111,13 @@ class TorchPOCAOptimizer(TorchOptimizer):
 
         def critic_pass(
             self,
-            obs: List[List[torch.Tensor]],
-            memories: Optional[torch.Tensor] = None,
+            obs: List[List[paddle.Tensor]],
+            memories: Optional[paddle.Tensor] = None,
             sequence_length: int = 1,
-        ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
+        ) -> Tuple[Dict[str, paddle.Tensor], paddle.Tensor]:
             """
             A centralized value function. It calls the forward pass of MultiAgentNetworkBody
             with just the states of all agents.
-            :param obs: List of observations for all agents in group
-            :param memories: If using memory, a Tensor of initial memories.
-            :param sequence_length: If using memory, the sequence length.
-            :return: A Tuple of Dict of reward stream to tensor and critic memories.
             """
             encoding, memories = self.network_body(
                 obs_only=obs,
@@ -145,35 +134,32 @@ class TorchPOCAOptimizer(TorchOptimizer):
 
         def forward(
             self,
-            encoding: torch.Tensor,
-            memories: Optional[torch.Tensor] = None,
+            encoding: paddle.Tensor,
+            memories: Optional[paddle.Tensor] = None,
             sequence_length: int = 1,
-        ) -> Tuple[torch.Tensor, torch.Tensor]:
+        ) -> Tuple[paddle.Tensor, paddle.Tensor]:
 
             output = self.value_heads(encoding)
             return output, memories
 
-    def __init__(self, policy: TorchPolicy, trainer_settings: TrainerSettings):
+    def __init__(self, policy: PaddlePolicy, trainer_settings: TrainerSettings):
         """
         Takes a Policy and a Dict of trainer parameters and creates an Optimizer around the policy.
-        :param policy: A TorchPolicy object that will be updated by this POCA Optimizer.
-        :param trainer_params: Trainer parameters dictionary that specifies the
-        properties of the trainer.
         """
-        # Create the graph here to give more granular control of the TF graph to the Optimizer.
-
         super().__init__(policy, trainer_settings)
         reward_signal_configs = trainer_settings.reward_signals
         reward_signal_names = [key.value for key, _ in reward_signal_configs.items()]
 
-        self._critic = TorchPOCAOptimizer.POCAValueNetwork(
+        self._critic = PaddlePOCAOptimizer.POCAValueNetwork(
             reward_signal_names,
             policy.behavior_spec.observation_specs,
             network_settings=trainer_settings.network_settings,
             action_spec=policy.behavior_spec.action_spec,
         )
-        # Move to GPU if needed
-        self._critic.to(default_device())
+
+        # In Paddle, explicit .to(device) is rarely needed if global device is set,
+        # but kept here for logic consistency with PyTorch version if needed.
+        # self._critic.to(paddle.get_device())
 
         params = list(self.policy.actor.parameters()) + list(self.critic.parameters())
 
@@ -200,17 +186,19 @@ class TorchPOCAOptimizer(TorchOptimizer):
             self.trainer_settings.max_steps,
         )
 
-        self.optimizer = torch.optim.Adam(
-            params, lr=self.trainer_settings.hyperparameters.learning_rate
+        self.optimizer = paddle.optimizer.Adam(
+            learning_rate=self.trainer_settings.hyperparameters.learning_rate,
+            parameters=params
         )
+
         self.stats_name_to_update_name = {
             "Losses/Value Loss": "value_loss",
             "Losses/Policy Loss": "policy_loss",
         }
 
         self.stream_names = list(self.reward_signals.keys())
-        self.value_memory_dict: Dict[str, torch.Tensor] = {}
-        self.baseline_memory_dict: Dict[str, torch.Tensor] = {}
+        self.value_memory_dict: Dict[str, paddle.Tensor] = {}
+        self.baseline_memory_dict: Dict[str, paddle.Tensor] = {}
 
     def create_reward_signals(
         self, reward_signal_configs: Dict[RewardSignalType, RewardSignalSettings]
@@ -218,7 +206,6 @@ class TorchPOCAOptimizer(TorchOptimizer):
         """
         Create reward signals. Override default to provide warnings for Curiosity and
         GAIL, and make sure Extrinsic adds team rewards.
-        :param reward_signal_configs: Reward signal config.
         """
         for reward_signal in reward_signal_configs.keys():
             if reward_signal != RewardSignalType.EXTRINSIC:
@@ -227,8 +214,7 @@ class TorchPOCAOptimizer(TorchOptimizer):
                     "results may be unexpected."
                 )
         super().create_reward_signals(reward_signal_configs)
-        # Make sure we add the groupmate rewards in POCA, so agents learn how to help each
-        # other achieve individual rewards as well
+        # Make sure we add the groupmate rewards in POCA
         for reward_provider in self.reward_signals.values():
             if isinstance(reward_provider, ExtrinsicRewardProvider):
                 reward_provider.add_groupmate_rewards = True
@@ -241,9 +227,6 @@ class TorchPOCAOptimizer(TorchOptimizer):
     def update(self, batch: AgentBuffer, num_sequences: int) -> Dict[str, float]:
         """
         Performs update on model.
-        :param batch: Batch of experiences.
-        :param num_sequences: Number of sequences to process.
-        :return: Results of update.
         """
         # Get decayed parameters
         decay_lr = self.decay_learning_rate.get_value(self.policy.get_current_step())
@@ -282,7 +265,8 @@ class TorchPOCAOptimizer(TorchOptimizer):
             for i in range(0, len(batch[BufferKey.MEMORY]), self.policy.sequence_length)
         ]
         if len(memories) > 0:
-            memories = torch.stack(memories).unsqueeze(0)
+            memories = paddle.stack(memories).unsqueeze(0)
+
         value_memories = [
             ModelUtils.list_to_tensor(batch[BufferKey.CRITIC_MEMORY][i])
             for i in range(
@@ -298,8 +282,8 @@ class TorchPOCAOptimizer(TorchOptimizer):
         ]
 
         if len(value_memories) > 0:
-            value_memories = torch.stack(value_memories).unsqueeze(0)
-            baseline_memories = torch.stack(baseline_memories).unsqueeze(0)
+            value_memories = paddle.stack(value_memories).unsqueeze(0)
+            baseline_memories = paddle.stack(baseline_memories).unsqueeze(0)
 
         run_out = self.policy.actor.get_stats(
             current_obs,
@@ -327,7 +311,9 @@ class TorchPOCAOptimizer(TorchOptimizer):
         )
         old_log_probs = ActionLogProbs.from_buffer(batch).flatten()
         log_probs = log_probs.flatten()
-        loss_masks = ModelUtils.list_to_tensor(batch[BufferKey.MASKS], dtype=torch.bool)
+
+        # Paddle equivalent for dtype=torch.bool is dtype='bool' or paddle.bool
+        loss_masks = ModelUtils.list_to_tensor(batch[BufferKey.MASKS], dtype='bool')
 
         baseline_loss = ModelUtils.trust_region_value_loss(
             baselines, old_baseline_values, returns, decay_eps, loss_masks
@@ -350,15 +336,14 @@ class TorchPOCAOptimizer(TorchOptimizer):
         )
 
         # Set optimizer learning rate
-        ModelUtils.update_learning_rate(self.optimizer, decay_lr)
-        self.optimizer.zero_grad()
+        self.optimizer.set_lr(decay_lr)
+        self.optimizer.clear_grad()
         loss.backward()
 
         self.optimizer.step()
+
         update_stats = {
-            # NOTE: abs() is not technically correct, but matches the behavior in TensorFlow.
-            # TODO: After PyTorch is default, change to something more correct.
-            "Losses/Policy Loss": torch.abs(policy_loss).item(),
+            "Losses/Policy Loss": paddle.abs(policy_loss).item(),
             "Losses/Value Loss": value_loss.item(),
             "Losses/Baseline Loss": baseline_loss.item(),
             "Policy/Learning Rate": decay_lr,
@@ -376,38 +361,26 @@ class TorchPOCAOptimizer(TorchOptimizer):
 
     def _evaluate_by_sequence_team(
         self,
-        self_obs: List[torch.Tensor],
-        obs: List[List[torch.Tensor]],
+        self_obs: List[paddle.Tensor],
+        obs: List[List[paddle.Tensor]],
         actions: List[AgentAction],
-        init_value_mem: torch.Tensor,
-        init_baseline_mem: torch.Tensor,
+        init_value_mem: paddle.Tensor,
+        init_baseline_mem: paddle.Tensor,
     ) -> Tuple[
-        Dict[str, torch.Tensor],
-        Dict[str, torch.Tensor],
+        Dict[str, paddle.Tensor],
+        Dict[str, paddle.Tensor],
         AgentBufferField,
         AgentBufferField,
-        torch.Tensor,
-        torch.Tensor,
+        paddle.Tensor,
+        paddle.Tensor,
     ]:
         """
-        Evaluate a trajectory sequence-by-sequence, assembling the result. This enables us to get the
-        intermediate memories for the critic.
-        :param tensor_obs: A List of tensors of shape (trajectory_len, <obs_dim>) that are the agent's
-            observations for this trajectory.
-        :param initial_memory: The memory that preceeds this trajectory. Of shape (1,1,<mem_size>), i.e.
-            what is returned as the output of a MemoryModules.
-        :return: A Tuple of the value estimates as a Dict of [name, tensor], an AgentBufferField of the initial
-            memories to be used during value function update, and the final memory at the end of the trajectory.
+        Evaluate a trajectory sequence-by-sequence, assembling the result.
         """
         num_experiences = self_obs[0].shape[0]
         all_next_value_mem = AgentBufferField()
         all_next_baseline_mem = AgentBufferField()
 
-        # When using LSTM, we need to divide the trajectory into sequences of equal length. Sometimes,
-        # that division isn't even, and we must pad the leftover sequence.
-        # In the buffer, the last sequence are the ones that are padded. So if seq_len = 3 and
-        # trajectory is of length 10, the last sequence is [obs,pad,pad].
-        # Compute the number of elements in this padded seq.
         leftover_seq_len = num_experiences % self.policy.sequence_length
 
         all_values: Dict[str, List[np.ndarray]] = defaultdict(list)
@@ -416,7 +389,6 @@ class TorchPOCAOptimizer(TorchOptimizer):
         _value_mem = init_value_mem
 
         # Evaluate other trajectories, carrying over _mem after each
-        # trajectory
         for seq_num in range(num_experiences // self.policy.sequence_length):
             for _ in range(self.policy.sequence_length):
                 all_next_value_mem.append(ModelUtils.to_numpy(_value_mem.squeeze()))
@@ -481,8 +453,6 @@ class TorchPOCAOptimizer(TorchOptimizer):
                 _act = groupmate_action.slice(len(_obs) - leftover_seq_len, len(_obs))
                 groupmate_seq_act.append(_act)
 
-            # For the last sequence, the initial memory should be the one at the
-            # beginning of this trajectory.
             seq_obs = []
             for _ in range(leftover_seq_len):
                 all_next_value_mem.append(ModelUtils.to_numpy(_value_mem.squeeze()))
@@ -505,13 +475,14 @@ class TorchPOCAOptimizer(TorchOptimizer):
             )
             for signal_name, _val in last_baseline.items():
                 all_baseline[signal_name].append(_val)
+
         # Create one tensor per reward signal
         all_value_tensors = {
-            signal_name: torch.cat(value_list, dim=0)
+            signal_name: paddle.concat(value_list, axis=0)
             for signal_name, value_list in all_values.items()
         }
         all_baseline_tensors = {
-            signal_name: torch.cat(baseline_list, dim=0)
+            signal_name: paddle.concat(baseline_list, axis=0)
             for signal_name, baseline_list in all_baseline.items()
         }
         next_value_mem = _value_mem
@@ -542,6 +513,7 @@ class TorchPOCAOptimizer(TorchOptimizer):
             next_value_estimates,
             all_next_value_mem,
             _,
+            _,
         ) = self.get_trajectory_and_baseline_value_estimates(
             batch, next_obs, [], done, agent_id
         )
@@ -564,16 +536,6 @@ class TorchPOCAOptimizer(TorchOptimizer):
     ]:
         """
         Get value estimates, baseline estimates, and memories for a trajectory, in batch form.
-        :param batch: An AgentBuffer that consists of a trajectory.
-        :param next_obs: the next observation (after the trajectory). Used for bootstrapping
-            if this is not a terminal trajectory.
-        :param next_groupmate_obs: the next observations from other members of the group.
-        :param done: Set true if this is a terminal trajectory.
-        :param agent_id: Agent ID of the agent that this trajectory belongs to.
-        :returns: A Tuple of the Value Estimates as a Dict of [name, np.ndarray(trajectory_len)],
-            the baseline estimates as a Dict, the final value estimate as a Dict of [name, float], and
-            optionally (if using memories) an AgentBufferField of initial critic and baseline memories to be used
-            during update.
         """
 
         n_obs = len(self.policy.behavior_spec.observation_specs)
@@ -608,12 +570,12 @@ class TorchPOCAOptimizer(TorchOptimizer):
             _init_baseline_mem = self.baseline_memory_dict[agent_id]
         else:
             _init_value_mem = (
-                torch.zeros((1, 1, self.critic.memory_size), device=default_device())
+                paddle.zeros((1, 1, self.critic.memory_size))
                 if self.policy.use_recurrent
                 else None
             )
             _init_baseline_mem = (
-                torch.zeros((1, 1, self.critic.memory_size), device=default_device())
+                paddle.zeros((1, 1, self.critic.memory_size))
                 if self.policy.use_recurrent
                 else None
             )
@@ -625,7 +587,8 @@ class TorchPOCAOptimizer(TorchOptimizer):
         )
         all_next_value_mem: Optional[AgentBufferField] = None
         all_next_baseline_mem: Optional[AgentBufferField] = None
-        with torch.no_grad():
+
+        with paddle.no_grad():
             if self.policy.use_recurrent:
                 (
                     value_estimates,
@@ -652,6 +615,7 @@ class TorchPOCAOptimizer(TorchOptimizer):
                     _init_baseline_mem,
                     sequence_length=batch.num_experiences,
                 )
+
         # Store the memory for the next trajectory
         self.value_memory_dict[agent_id] = next_value_mem
         self.baseline_memory_dict[agent_id] = next_baseline_mem

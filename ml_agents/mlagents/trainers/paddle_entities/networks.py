@@ -254,8 +254,12 @@ class NetworkBody(nn.Layer):
 
         if self.use_lstm:
             # Resize to (batch, sequence length, encoding size)
+            # encoding = encoding.reshape([-1, sequence_length, self.h_size])
+            # encoding, memories = self.lstm(encoding, memories)
+            # encoding = encoding.reshape([-1, self.m_size // 2])
             encoding = encoding.reshape([-1, sequence_length, self.h_size])
             encoding, memories = self.lstm(encoding, memories)
+            # 用 -1 自动计算样本数，保证维度正确
             encoding = encoding.reshape([-1, self.m_size // 2])
         return encoding, memories
 

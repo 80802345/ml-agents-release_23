@@ -89,6 +89,7 @@ class PaddlePPOOptimizer(PaddleOptimizer):
             "Losses/Policy Loss": "policy_loss",
         }
 
+
         self.stream_names = list(self.reward_signals.keys())
 
     @property
@@ -107,7 +108,7 @@ class PaddlePPOOptimizer(PaddleOptimizer):
         decay_lr = self.decay_learning_rate.get_value(self.policy.get_current_step())
         decay_eps = self.decay_epsilon.get_value(self.policy.get_current_step())
         decay_bet = self.decay_beta.get_value(self.policy.get_current_step())
-        
+
         returns = {}
         old_values = {}
         for name in self.reward_signals:
@@ -133,7 +134,7 @@ class PaddlePPOOptimizer(PaddleOptimizer):
         if len(memories) > 0:
             memories = paddle.stack(memories).unsqueeze(axis=0)
         else:
-            memories = None 
+            memories = None
 
         # Get value memories
         value_memories = [
@@ -163,13 +164,13 @@ class PaddlePPOOptimizer(PaddleOptimizer):
             memories=value_memories,
             sequence_length=self.policy.sequence_length,
         )
-        
+
         old_log_probs = ActionLogProbs.from_buffer(batch).flatten()
         log_probs = log_probs.flatten()
-        
+
         loss_masks = ModelUtils.list_to_tensor(batch[BufferKey.MASKS], dtype='bool')
-        
-        # PPO Loss Calculations (Delegated to ModelUtils which should be Paddle-compatible now)
+
+
         value_loss = ModelUtils.trust_region_value_loss(
             values, old_values, returns, decay_eps, loss_masks
         )
@@ -180,7 +181,7 @@ class PaddlePPOOptimizer(PaddleOptimizer):
             loss_masks,
             decay_eps,
         )
-        
+
         loss = (
             policy_loss
             + 0.5 * value_loss
@@ -189,11 +190,10 @@ class PaddlePPOOptimizer(PaddleOptimizer):
 
         # Set optimizer learning rate
         ModelUtils.update_learning_rate(self.optimizer, decay_lr)
-        
         self.optimizer.clear_grad()
         loss.backward()
         self.optimizer.step()
-        
+
         update_stats = {
             "Losses/Policy Loss": paddle.abs(policy_loss).item(),
             "Losses/Value Loss": value_loss.item(),

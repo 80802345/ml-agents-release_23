@@ -12,7 +12,7 @@ class Normalizer(nn.Layer):
     def __init__(self, vec_obs_size: int):
         super().__init__()
         # register_buffer persists state but doesn't add to gradient computation
-        self.register_buffer("normalization_steps", paddle.to_tensor([1], dtype='float32'))
+        self.register_buffer("normalization_steps", paddle.to_tensor((1), dtype='float32'))
         self.register_buffer("running_mean", paddle.zeros([vec_obs_size], dtype='float32'))
         self.register_buffer("running_variance", paddle.ones([vec_obs_size], dtype='float32'))
 
@@ -41,12 +41,14 @@ class Normalizer(nn.Layer):
                 input_to_new_mean * input_to_old_mean
             ).sum(0)
 
-            # Update references.
-            # In Paddle, assigning to self.running_mean directly updates the member.
-            # To ensure it stays a buffer/parameter type if needed, assign is safer.
+
+            # self.running_mean = new_mean
+            # self.running_variance = new_variance
+            # self.normalization_steps = total_new_steps
+
             paddle.assign(new_mean, self.running_mean)
             paddle.assign(new_variance, self.running_variance)
-            paddle.assign(paddle.to_tensor([total_new_steps], dtype='float32'), self.normalization_steps)
+            paddle.assign(total_new_steps, self.normalization_steps)
 
     def copy_from(self, other_normalizer: "Normalizer") -> None:
         paddle.assign(other_normalizer.normalization_steps, self.normalization_steps)

@@ -183,19 +183,16 @@ class PaddleOptimizer(Optimizer):
             next_obs, next_memory, sequence_length=1
         )
 
-        value_estimates_np: Dict[str, np.ndarray] = {}
-        next_value_estimate_np: Dict[str, float] = {}
+
 
         for name, estimate in value_estimates.items():
-            value_estimates_np[name] = ModelUtils.to_numpy(estimate)
-            next_val_np = ModelUtils.to_numpy(next_value_estimate[name])
-            next_value_estimate_np[name] = float(next_val_np.squeeze())
-
+            value_estimates[name] = ModelUtils.to_numpy(estimate)
+            next_value_estimate[name] = ModelUtils.to_numpy(next_value_estimate[name])
         if done:
-            for k in next_value_estimate_np:
+            for k in next_value_estimate:
                 if not self.reward_signals[k].ignore_done:
-                    next_value_estimate_np[k] = 0.0
+                    next_value_estimate[k] = 0.0
             if agent_id in self.critic_memory_dict:
                 self.critic_memory_dict.pop(agent_id)
 
-        return value_estimates_np, next_value_estimate_np, all_next_memories
+        return value_estimates, next_value_estimate, all_next_memories
