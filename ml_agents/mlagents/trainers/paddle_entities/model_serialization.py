@@ -187,12 +187,11 @@ class ModelSerializer:
 
         :param output_filepath: file path to output the model (without file suffix)
         """
-        model_output_path = f"{output_filepath}.pdmodel"
+        model_output_path = f"{output_filepath}"
         logger.debug(f"Converting to {model_output_path}")
         self.policy.actor.eval()
-        # net=paddle.jit.to_static(self.policy.actor)
-        paddle.save(self.policy.actor.state_dict(), model_output_path)
-        #paddle.jit.save(self.policy.actor, model_output_path, input_spec=self.input_specs)
+        # paddle.save(self.policy.actor.state_dict(), model_output_path)
+        paddle.jit.save(self.policy.actor, model_output_path, input_spec=self.input_specs)
         # Ensure the model is in eval mode
 
 

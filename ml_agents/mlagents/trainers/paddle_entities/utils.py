@@ -388,7 +388,19 @@ class ModelUtils:
         Evaluate policy loss clipped to stay within a trust region. Used for PPO and POCA.
         """
         advantage = advantages.unsqueeze(-1)
+        log_probs_flat = log_probs.flatten()
+        old_log_probs_flat = old_log_probs.flatten()
+        log_diff = log_probs - old_log_probs
+        # 3. 找出差值大于threshold的位置
+        mask = log_diff > 6
+        mask_flat = mask.flatten()
+        for index in range(len(mask_flat)):
+            if mask_flat[index] == 1:
+                print("FOUND SERIOUS ERROR")
+                print(log_probs_flat[index],old_log_probs_flat[index])
         r_theta = paddle.exp(log_probs - old_log_probs)
+        # print("R_THRTA:"+str(r_theta.max().item())+str(r_theta.min().item()))
+        # print(log_probs.min().item(), log_probs.max().item(), old_log_probs.max().item(),old_log_probs.min().item())
         p_opt_a = r_theta * advantage
         p_opt_b = paddle.clip(r_theta, 1.0 - epsilon, 1.0 + epsilon) * advantage
         policy_loss = -1 * ModelUtils.masked_mean(

@@ -312,6 +312,14 @@ class PaddlePOCAOptimizer(PaddleOptimizer):
         old_log_probs = ActionLogProbs.from_buffer(batch).flatten()
         log_probs = log_probs.flatten()
 
+        # 3. 找出差值大于threshold的位置
+        # mask = log_diff > 4
+        # mask_flat = mask.flatten()
+        # for index in range(len(mask_flat)):
+        #     if mask_flat[index] == 1:
+        #         print("FOUND ERROR")
+        #         print(old_log_probs[index],old_log_probs[index])
+
         # Paddle equivalent for dtype=torch.bool is dtype='bool' or paddle.bool
         loss_masks = ModelUtils.list_to_tensor(batch[BufferKey.MASKS], dtype='bool')
 
