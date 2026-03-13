@@ -1,5 +1,3 @@
-# Unity ML-Agents Toolkit
-# ## ML-Agent Learning
 """Launches trainers for each External Brains in a Unity Environment."""
 
 import os

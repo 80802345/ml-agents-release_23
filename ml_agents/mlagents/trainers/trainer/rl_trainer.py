@@ -1,4 +1,3 @@
-# Unity ML-Agents Toolkit
 from typing import Dict, List, Optional
 from collections import defaultdict
 import abc
@@ -15,12 +14,10 @@ from mlagents_envs.logging_util import get_logger
 from mlagents_envs.timers import timed
 from mlagents.trainers.optimizer import Optimizer
 
-# Ensure you import the Paddle version of the optimizer
 from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
 
 from mlagents.trainers.buffer import AgentBuffer, BufferKey
 from mlagents.trainers.trainer import Trainer
-# Ensure you import the Paddle entities version
 from mlagents.trainers.paddle_entities.components.reward_providers.base_reward_provider import (
     BaseRewardProvider,
 )
@@ -29,8 +26,7 @@ from mlagents_envs.timers import hierarchical_timer
 try:
     from mlagents.trainers.model_saver.paddle_model_saver import PaddleModelSaver
 except ImportError:
-    # Placeholder if not yet converted, logic will fail at runtime if not implemented
-    PaddleModelSaver = None 
+    PaddleModelSaver = None
 
 from mlagents.trainers.agent_processor import AgentManagerQueue
 from mlagents.trainers.trajectory import Trajectory
@@ -49,9 +45,6 @@ class RLTrainer(Trainer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # collected_rewards is a dictionary from name of reward signal to a dictionary of agent_id to cumulative reward
-        # used for reporting only. We always want to report the environment reward to Tensorboard, regardless
-        # of what reward signals are actually present.
         self.cumulative_returns_since_policy_update: List[float] = []
         self.collected_rewards: Dict[str, Dict[str, int]] = {
             "environment": defaultdict(lambda: 0)
@@ -128,7 +121,6 @@ class RLTrainer(Trainer):
     def create_model_saver(
         trainer_settings: TrainerSettings, model_path: str, load: bool
     ) -> BaseModelSaver:
-        # Use PaddleModelSaver here
         if PaddleModelSaver is None:
              raise NotImplementedError("PaddleModelSaver has not been implemented or imported yet.")
              
@@ -296,9 +288,6 @@ class RLTrainer(Trainer):
         """
         with hierarchical_timer("process_trajectory"):
             for traj_queue in self.trajectory_queues:
-                # We grab at most the maximum length of the queue.
-                # This ensures that even if the queue is being filled faster than it is
-                # being emptied, the trajectories in the queue are on-policy.
                 _queried = False
                 for _ in range(traj_queue.qsize()):
                     _queried = True
@@ -308,12 +297,10 @@ class RLTrainer(Trainer):
                     except AgentManagerQueue.Empty:
                         break
                 if self.threaded and not _queried:
-                    # Yield thread to avoid busy-waiting
                     time.sleep(0.0001)
         if self.should_still_train:
             if self._is_ready_update():
                 with hierarchical_timer("_update_policy"):
                     if self._update_policy():
                         for q in self.policy_queues:
-                            # Get policies that correspond to the policy queue in question
                             q.put(self.get_policy(q.behavior_id))

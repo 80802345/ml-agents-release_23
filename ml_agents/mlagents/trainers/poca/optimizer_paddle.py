@@ -157,10 +157,6 @@ class PaddlePOCAOptimizer(PaddleOptimizer):
             action_spec=policy.behavior_spec.action_spec,
         )
 
-        # In Paddle, explicit .to(device) is rarely needed if global device is set,
-        # but kept here for logic consistency with PyTorch version if needed.
-        # self._critic.to(paddle.get_device())
-
         params = list(self.policy.actor.parameters()) + list(self.critic.parameters())
 
         self.hyperparameters: POCASettings = cast(
@@ -214,7 +210,6 @@ class PaddlePOCAOptimizer(PaddleOptimizer):
                     "results may be unexpected."
                 )
         super().create_reward_signals(reward_signal_configs)
-        # Make sure we add the groupmate rewards in POCA
         for reward_provider in self.reward_signals.values():
             if isinstance(reward_provider, ExtrinsicRewardProvider):
                 reward_provider.add_groupmate_rewards = True
@@ -312,15 +307,6 @@ class PaddlePOCAOptimizer(PaddleOptimizer):
         old_log_probs = ActionLogProbs.from_buffer(batch).flatten()
         log_probs = log_probs.flatten()
 
-        # 3. 找出差值大于threshold的位置
-        # mask = log_diff > 4
-        # mask_flat = mask.flatten()
-        # for index in range(len(mask_flat)):
-        #     if mask_flat[index] == 1:
-        #         print("FOUND ERROR")
-        #         print(old_log_probs[index],old_log_probs[index])
-
-        # Paddle equivalent for dtype=torch.bool is dtype='bool' or paddle.bool
         loss_masks = ModelUtils.list_to_tensor(batch[BufferKey.MASKS], dtype='bool')
 
         baseline_loss = ModelUtils.trust_region_value_loss(

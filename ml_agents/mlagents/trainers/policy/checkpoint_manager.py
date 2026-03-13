@@ -1,4 +1,3 @@
-# Unity ML-Agents Toolkit
 from typing import Dict, Any, Optional, List
 import os
 import attr

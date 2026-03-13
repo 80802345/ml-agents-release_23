@@ -62,7 +62,7 @@ setup(
         "Pillow>=4.2.1",
         "protobuf>=3.6,<3.21",
         "pyyaml>=3.1.0",
-        "paddlepaddle>=3.0.0",
+        "paddlepaddle>=3.1.0",
         "visualdl>=2.5.0",
         "paddle2onnx",
         "six>=1.16",

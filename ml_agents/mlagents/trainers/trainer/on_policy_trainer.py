@@ -1,7 +1,3 @@
-# Unity ML-Agents Toolkit
-# ## ML-Agent Learning (PPO)
-# Contains an implementation of PPO as described in: https://arxiv.org/abs/1707.06347
-
 from collections import defaultdict
 from typing import cast
 
@@ -72,13 +68,10 @@ class OnPolicyTrainer(RLTrainer):
         buffer_length = self.update_buffer.num_experiences
         self.cumulative_returns_since_policy_update.clear()
 
-        # Make sure batch_size is a multiple of sequence length. During training, we
-        # will need to reshape the data into a batch_size x sequence_length tensor.
         batch_size = (
             self.hyperparameters.batch_size
             - self.hyperparameters.batch_size % self.policy.sequence_length
         )
-        # Make sure there is at least one sequence
         batch_size = max(batch_size, self.policy.sequence_length)
 
         n_sequences = max(
@@ -88,7 +81,6 @@ class OnPolicyTrainer(RLTrainer):
         advantages = np.array(
             self.update_buffer[BufferKey.ADVANTAGES].get_batch(), dtype=np.float32
         )
-        # Advantage Normalization (NumPy based, no framework change needed)
         self.update_buffer[BufferKey.ADVANTAGES].set(
             (advantages - advantages.mean()) / (advantages.std() + 1e-10)
         )
@@ -101,7 +93,6 @@ class OnPolicyTrainer(RLTrainer):
             max_num_batch = buffer_length // batch_size
             for i in range(0, max_num_batch * batch_size, batch_size):
                 minibatch = buffer.make_mini_batch(i, i + batch_size)
-                # update() calls into PaddleOptimizer logic
                 update_stats = self.optimizer.update(minibatch, n_sequences)
                 update_stats.update(self.optimizer.update_reward_signals(minibatch))
                 for stat_name, value in update_stats.items():
@@ -135,8 +126,6 @@ class OnPolicyTrainer(RLTrainer):
         self.policy = policy
         self.policies[parsed_behavior_id.behavior_id] = policy
 
-        # This will call create_optimizer() in the subclass (e.g. PPOTrainer)
-        # Ensure your PPOTrainer returns a PaddleOptimizer
         self.optimizer = self.create_optimizer()
         for _reward_signal in self.optimizer.reward_signals.keys():
             self.collected_rewards[_reward_signal] = defaultdict(lambda: 0)
@@ -145,5 +134,4 @@ class OnPolicyTrainer(RLTrainer):
         self.model_saver.register(self.optimizer)
         self.model_saver.initialize_or_load()
 
-        # Needed to resume loads properly
         self._step = policy.get_current_step()

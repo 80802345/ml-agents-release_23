@@ -45,6 +45,7 @@ class ObservationEncoder(nn.Layer):
         Will use an RSA if needed for variable length observations.
         """
         super().__init__()
+        # ModelUtils 需要适配 Paddle 返回 Paddle 的 Layer
         self.processors, self.embedding_sizes = ModelUtils.create_input_processors(
             observation_specs,
             h_size,
@@ -87,6 +88,7 @@ class ObservationEncoder(nn.Layer):
         obs = ObsUtil.from_buffer(buffer, len(self.processors))
         for vec_input, enc in zip(obs, self.processors):
             if isinstance(enc, VectorInput):
+                # Paddle 处理 tensor 转换
                 enc.update_normalization(
                     paddle.to_tensor(vec_input.to_ndarray())
                 )
@@ -104,6 +106,8 @@ class ObservationEncoder(nn.Layer):
         """
         if isinstance(inputs, paddle.Tensor):
             inputs = [inputs]
+        # ==================================================
+
 
         encodes = []
         var_len_processor_inputs: List[Tuple[nn.Layer, paddle.Tensor]] = []
@@ -249,8 +253,13 @@ class NetworkBody(nn.Layer):
             encoding = self._body_endoder(encoded_self)
 
         if self.use_lstm:
+            # Resize to (batch, sequence length, encoding size)
+            # encoding = encoding.reshape([-1, sequence_length, self.h_size])
+            # encoding, memories = self.lstm(encoding, memories)
+            # encoding = encoding.reshape([-1, self.m_size // 2])
             encoding = encoding.reshape([-1, sequence_length, self.h_size])
             encoding, memories = self.lstm(encoding, memories)
+            # 用 -1 自动计算样本数，保证维度正确
             encoding = encoding.reshape([-1, self.m_size // 2])
         return encoding, memories
 

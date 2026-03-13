@@ -1,8 +1,7 @@
-# Unity RL-Agents Toolkit
 from mlagents import paddle_utils
 import yaml
 
-
+import os
 import numpy as np
 import json
 
@@ -35,6 +34,7 @@ from mlagents_envs import logging_util
 from mlagents.plugins.stats_writer import register_stats_writer_plugins
 from mlagents.plugins.trainer_type import register_trainer_plugins
 import os
+os.environ["TRANSLATOR_VERBOSITY"] = '3'
 logger = logging_util.get_logger(__name__)
 
 TRAINING_STATUS_FILE_NAME = "training_status.json"
@@ -52,11 +52,13 @@ def parse_command_line(
     argv: Optional[List[str]] = None,
 ) -> RunOptions:
     _, _ = register_trainer_plugins()
-    argv = []
-    # argv.append("--run-id=SoccerTwo_2")
+    argv=[]
     # argv.append("./soccer2.yaml")
-    # argv.append("--resume")
-    # args = parser.parse_args(argv)
+    argv.append("--run-id=SoccerTwo_2")
+    argv.append("./soccer2.yaml")
+    # argv.append("--initialize-from=ppo")
+    argv.append("--resume")
+    args = parser.parse_args(argv)
     return RunOptions.from_argparse(args)
 
 
@@ -68,15 +70,14 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
     :param options: parsed command line arguments
     """
     with hierarchical_timer("run_training.setup"):
-        if hasattr(paddle_utils, "set_paddle_config"):
-            paddle_utils.set_paddle_config(options.paddle_settings)
+        # Configure Paddle global settings (device, seed, etc.)
+        # Assuming set_paddle_config exists in your paddle_utils, otherwise use paddle.set_device
+        if hasattr(paddle_utils, 'set_paddle_config'):
+             paddle_utils.set_paddle_config(options.paddle_settings) # keeping name for compatibility with settings object
         else:
-            device = (
-                options.paddle_settings.device
-                if options.paddle_settings.device
-                else "cpu"
-            )
-            paddle_utils.paddle.set_device(device)
+             # Basic fallback if utility function missing
+             device = options.paddle_settings.device if options.paddle_settings.device else "cpu"
+             paddle_utils.paddle.set_device(device)
 
         checkpoint_settings = options.checkpoint_settings
         env_settings = options.env_settings
@@ -84,20 +85,25 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
 
         run_logs_dir = checkpoint_settings.run_logs_dir
         port: Optional[int] = env_settings.base_port
+        # Check if directory exists
         validate_existing_directories(
             checkpoint_settings.write_path,
             checkpoint_settings.resume,
             checkpoint_settings.force,
             checkpoint_settings.maybe_init_path,
         )
+        # Make run logs directory
         os.makedirs(run_logs_dir, exist_ok=True)
+        # Load any needed states in case of resume
         if checkpoint_settings.resume:
             GlobalTrainingStatus.load_state(
                 os.path.join(run_logs_dir, "training_status.json")
             )
+        # In case of initialization, set full init_path for all behaviors
         elif checkpoint_settings.maybe_init_path is not None:
             setup_init_path(options.behaviors, checkpoint_settings.maybe_init_path)
 
+        # Configure Tensorboard Writers and StatsReporter
         stats_writers = register_stats_writer_plugins(options)
         for sw in stats_writers:
             StatsReporter.add_writer(sw)
@@ -113,7 +119,7 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
             env_settings.timeout_wait,
             port,
             env_settings.env_args,
-            os.path.abspath(run_logs_dir),
+            os.path.abspath(run_logs_dir),  # Unity environment requires absolute path
         )
 
         env_manager = SubprocessEnvManager(env_factory, options, env_settings.num_envs)
@@ -131,6 +137,7 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
             init_path=checkpoint_settings.maybe_init_path,
             multi_gpu=False,
         )
+        # Create controller and begin training.
         tc = TrainerController(
             trainer_factory,
             checkpoint_settings.write_path,
@@ -140,6 +147,7 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
             run_seed,
         )
 
+    # Begin training
     try:
         tc.start_learning(env_manager)
     finally:
@@ -237,6 +245,7 @@ def run_cli(options: RunOptions) -> None:
     logger.debug("Configuration for this run:")
     logger.debug(json.dumps(options.as_dict(), indent=4))
 
+    # Options deprecation warnings
     if options.checkpoint_settings.load_model:
         logger.warning(
             "The --load option has been deprecated. Please use the --resume option instead."
@@ -250,6 +259,7 @@ def run_cli(options: RunOptions) -> None:
     run_seed = options.env_settings.seed
     num_areas = options.env_settings.num_areas
 
+    # Add some timer metadata
     add_timer_metadata("mlagents_version", mlagents.trainers.__version__)
     add_timer_metadata("mlagents_envs_version", mlagents_envs.__version__)
     add_timer_metadata("communication_protocol_version", UnityEnvironment.API_VERSION)
@@ -266,5 +276,6 @@ def main():
     run_cli(parse_command_line())
 
 
+# For python debugger to directly run this script
 if __name__ == "__main__":
     main()

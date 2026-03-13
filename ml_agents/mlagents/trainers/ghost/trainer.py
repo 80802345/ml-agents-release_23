@@ -1,6 +1,3 @@
-# Unity ML-Agents Toolkit
-# ## ML-Agent Learning (Ghost Trainer)
-
 from collections import defaultdict
 from typing import Deque, Dict, DefaultDict, List
 

@@ -272,20 +272,15 @@ class LSTM(MemoryModule):
         # Assuming memories shape is [1, batch, memory_size] based on single layer assumption in mlagents usually
 
         # We assume memories is [batch, 1, memory_size] or [1, batch, memory_size]?
-        # ML-Agents logic: memories is usually [1, batch, size] for LSTM state if num_layers=1
-
-        # Splitting hidden and cell state
         h0 = memories[:, :, : self.hidden_size]
         c0 = memories[:, :, self.hidden_size :]
 
-        # Ensure contiguous memory if necessary (clone helps detached form graph or re-layout)
         h0 = h0.clone()
         c0 = c0.clone()
 
         hidden = (h0, c0)
         lstm_out, (h_out, c_out) = self.lstm(input_tensor, hidden)
 
-        # Concatenate hidden and cell state back together
         output_mem = paddle.concat([h_out, c_out], axis=-1)
 
         if exporting_to_onnx.is_exporting():

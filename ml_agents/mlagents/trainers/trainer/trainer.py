@@ -1,4 +1,3 @@
-# Unity ML-Agents Toolkit
 from typing import List, Deque, Dict
 import abc
 from collections import deque

@@ -1,7 +1,3 @@
-# Unity ML-Agents Toolkit
-# ## ML-Agent Learning (PPO)
-# Contains an implementation of PPO as described in: https://arxiv.org/abs/1707.06347
-
 from typing import cast, Type, Union, Dict, Any
 
 import numpy as np
@@ -70,20 +66,16 @@ class PPOTrainer(OnPolicyTrainer):
         Processing involves calculating value and advantage targets for model updating step.
         :param trajectory: The Trajectory tuple containing the steps to be processed.
         """
-        # 调用基类处理（主要是统计）
         super()._process_trajectory(trajectory)
         agent_id = trajectory.agent_id
 
         agent_buffer_trajectory = trajectory.to_agentbuffer()
         self._warn_if_group_reward(agent_buffer_trajectory)
 
-        # Update the normalization
         if self.is_training:
             self.policy.actor.update_normalization(agent_buffer_trajectory)
             self.optimizer.critic.update_normalization(agent_buffer_trajectory)
 
-        # Get all value estimates
-        # Note: optimizer.get_trajectory_value_estimates returns NumPy arrays in our Paddle conversion
         (
             value_estimates,
             value_next,
@@ -105,7 +97,6 @@ class PPOTrainer(OnPolicyTrainer):
                 np.mean(v),
             )
 
-        # Evaluate all reward functions
         self.collected_rewards["environment"][agent_id] += np.sum(
             agent_buffer_trajectory[BufferKey.ENVIRONMENT_REWARDS]
         )
@@ -118,7 +109,6 @@ class PPOTrainer(OnPolicyTrainer):
             )
             self.collected_rewards[name][agent_id] += np.sum(evaluate_result)
 
-        # Compute GAE and returns (Standard Logic, Framework Agnostic via NumPy)
         tmp_advantages = []
         tmp_returns = []
         for name in self.optimizer.reward_signals:
@@ -163,7 +153,6 @@ class PPOTrainer(OnPolicyTrainer):
             self._update_end_episode_stats(agent_id, self.optimizer)
 
     def create_optimizer(self) -> PaddleOptimizer:
-        # 实例化 Paddle 版本的 PPO 优化器
         return PaddlePPOOptimizer(  # type: ignore
             cast(PaddlePolicy, self.policy), self.trainer_settings  # type: ignore
         )  # type: ignore
@@ -187,7 +176,6 @@ class PPOTrainer(OnPolicyTrainer):
             reward_signal_names = [
                 key.value for key, _ in reward_signal_configs.items()
             ]
-            # 使用 Paddle 版本的 SharedActorCritic
             actor_cls = SharedActorCritic
             actor_kwargs.update({"stream_names": reward_signal_names})
 

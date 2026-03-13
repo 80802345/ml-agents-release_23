@@ -12,6 +12,7 @@ from mlagents.trainers.paddle_entities.layers import linear_layer, Initializatio
 class Normalizer(nn.Layer):
     def __init__(self, vec_obs_size: int):
         super().__init__()
+        # register_buffer persists state but doesn't add to gradient computation
         self.register_buffer("normalization_steps", paddle.to_tensor((1), dtype='float32'))
         self.register_buffer("running_mean", paddle.zeros([vec_obs_size], dtype='float32'))
         self.register_buffer("running_variance", paddle.ones([vec_obs_size], dtype='float32'))
@@ -32,6 +33,7 @@ class Normalizer(nn.Layer):
             total_new_steps = self.normalization_steps + steps_increment
 
             input_to_old_mean = vector_input - self.running_mean
+            # axis=0 sum
             new_mean = self.running_mean + (
                 input_to_old_mean / total_new_steps
             ).sum(0)
@@ -40,6 +42,11 @@ class Normalizer(nn.Layer):
             new_variance = self.running_variance + (
                 input_to_new_mean * input_to_old_mean
             ).sum(0)
+
+
+            # self.running_mean = new_mean
+            # self.running_variance = new_variance
+            # self.normalization_steps = total_new_steps
 
             paddle.assign(new_mean, self.running_mean)
             paddle.assign(new_variance, self.running_variance)

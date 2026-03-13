@@ -2,7 +2,6 @@ from typing import Dict, cast
 import attr
 import paddle
 
-# Ensure these point to your converted Paddle modules
 from mlagents.trainers.buffer import AgentBuffer, BufferKey, RewardSignalUtil
 from mlagents.trainers.policy.paddle_policy import PaddlePolicy
 from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer

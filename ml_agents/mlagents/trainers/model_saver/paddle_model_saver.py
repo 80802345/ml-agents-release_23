@@ -7,14 +7,12 @@ from mlagents_envs.logging_util import get_logger
 from mlagents.trainers.model_saver.model_saver import BaseModelSaver
 from mlagents.trainers.settings import TrainerSettings, SerializationSettings
 
-# Ensure imports point to your converted Paddle classes
 from mlagents.trainers.policy.paddle_policy import PaddlePolicy
 from mlagents.trainers.optimizer.paddle_optimizer import PaddleOptimizer
 from mlagents.trainers.paddle_entities.model_serialization import ModelSerializer
 
 
 logger = get_logger(__name__)
-# Paddle standard extension is .pdparams usually, but we can stick to .pt or .pdparams
 DEFAULT_CHECKPOINT_NAME = "checkpoint.pdparams"
 
 

@@ -2,7 +2,6 @@ import os
 
 from distutils.version import LooseVersion
 import pkg_resources
-# from mlagents.torch_utils import cpu_utils
 from mlagents.trainers.settings import PaddleSettings
 from mlagents_envs.logging_util import get_logger
 
@@ -11,8 +10,6 @@ logger = get_logger(__name__)
 
 
 def assert_paddle_installed():
-    # Check that paddle version 2.0.0 or later has been installed. If not, refer
-    # user to the PaddlePaddle webpage for install instructions.
     paddle_pkg = None
     try:
         paddle_pkg = pkg_resources.get_distribution("paddlepaddle")
@@ -23,11 +20,11 @@ def assert_paddle_installed():
             pass
 
     assert paddle_pkg is not None and LooseVersion(paddle_pkg.version) >= LooseVersion(
-        "3.0.0"
+        "3.1.0"
     ), (
         "A compatible version of PaddlePaddle was not installed. Please visit the PaddlePaddle homepage "
         + "(https://www.paddlepaddle.org.cn/install/quick) and follow the instructions to install. "
-        + "Version 3.0.0 and later are supported."
+        + "Version 3.1.0 and later are supported."
     )
 
 
@@ -61,7 +58,6 @@ def set_paddle_config(paddle_settings: PaddleSettings) -> None:
     paddle.set_device(device_str)
     _device = paddle.get_device()
 
-    # 3. 设置默认数据类型
     paddle.set_default_dtype("float32")
     logger.debug(f"default Paddle device: {_device}")
 

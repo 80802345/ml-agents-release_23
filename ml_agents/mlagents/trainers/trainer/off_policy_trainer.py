@@ -1,7 +1,3 @@
-# ## ML-Agent Learning (SAC)
-# Contains an implementation of SAC as described in https://arxiv.org/abs/1801.01290
-# and implemented in https://github.com/hill-a/stable-baselines
-
 from collections import defaultdict
 from typing import Dict, cast
 import os
