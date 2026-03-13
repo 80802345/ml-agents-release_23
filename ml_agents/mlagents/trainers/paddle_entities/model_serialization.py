@@ -1,11 +1,11 @@
 from typing import Tuple
 import threading
+import os
 import paddle
 
+from mlagents.trainers.settings import SerializationSettings
 from mlagents_envs.logging_util import get_logger
-import os
-os.environ["FLAGS_ENABLE_PIR_API"] = "False"
-os.environ["FLAGS_USE_PIR_COMPILER"] = "False"
+
 logger = get_logger(__name__)
 
 
@@ -19,11 +19,8 @@ class exporting_to_onnx:
     This implementation is thread safe.
     """
 
-    # local is_exporting flag for each thread
     _local_data = threading.local()
     _local_data._is_exporting = False
-
-    # global lock shared among all threads, to make sure only one thread is exporting at a time
     _lock = threading.Lock()
 
     def __enter__(self):
@@ -64,7 +61,6 @@ class TensorNames:
     deterministic_continuous_action_output = "deterministic_continuous_actions"
     deterministic_discrete_action_output = "deterministic_discrete_actions"
 
-    # Deprecated TensorNames entries for backward compatibility
     is_continuous_control_deprecated = "is_continuous_control"
     action_output_deprecated = "action"
     action_output_shape_deprecated = "action_output_shape"
@@ -86,18 +82,12 @@ class TensorNames:
 
 class ModelSerializer:
     def __init__(self, policy):
-        # ONNX only support input in NCHW (channel first) format.
-        # Sentis also expect to get data in NCHW.
-        # Any multi-dimentional input should follow that otherwise will
-        # cause problem for Sentis import.
-
         self.policy = policy
         observation_specs = self.policy.behavior_spec.observation_specs
         batch_dim = [1]
         seq_len_dim = [1]
         num_obs = len(observation_specs)
 
-        # Create dummy inputs to determine shapes
         dummy_obs = [
             paddle.zeros(
                 batch_dim + list(ModelSerializer._get_onnx_shape(obs_spec.shape)),
@@ -117,14 +107,11 @@ class ModelSerializer:
 
         self.dummy_input = (dummy_obs, dummy_masks, dummy_memories)
 
-        # Setup Input Names
         self.input_names = [TensorNames.get_observation_name(i) for i in range(num_obs)]
-        self.input_names += [
-            TensorNames.action_mask_placeholder,
-            TensorNames.recurrent_in_placeholder,
-        ]
+        self.input_names += [TensorNames.action_mask_placeholder]
+        if self.policy.export_memory_size > 0:
+            self.input_names += [TensorNames.recurrent_in_placeholder]
 
-        # Setup Output Names
         self.output_names = [TensorNames.version_number, TensorNames.memory_size]
         if self.policy.behavior_spec.action_spec.continuous_size > 0:
             self.output_names += [
@@ -142,13 +129,9 @@ class ModelSerializer:
         if self.policy.export_memory_size > 0:
             self.output_names += [TensorNames.recurrent_output]
 
-        # In Paddle, we use InputSpec to define shapes and names for export.
-        # Structure must match SimpleActor.forward(inputs, masks, memories)
-
         self.input_specs = []
         pre_obs=[]
         for i, obs_tensor in enumerate(dummy_obs):
-            # Use None for dynamic batch size
             shape = list(obs_tensor.shape)
             shape[0] = None
             pre_obs.append(
@@ -156,14 +139,12 @@ class ModelSerializer:
             )
         self.input_specs.append(pre_obs)
 
-        # --- Argument 2: masks (Tensor) ---
         mask_shape = list(dummy_masks.shape)
         mask_shape[0] = None
         self.input_specs.append(
             paddle.static.InputSpec(shape=mask_shape, dtype='float32', name=TensorNames.action_mask_placeholder)
         )
 
-        # --- Argument 3: memories (Tensor) ---
         if self.policy.export_memory_size > 0:
             mem_shape = list(dummy_memories.shape)
             mem_shape[0] = None
@@ -180,7 +161,63 @@ class ModelSerializer:
         if len(shape) == 3:
             return shape[0], shape[1], shape[2]
         return shape
-    #todo: Onnx transforming in future
+
+    def _rename_unity_outputs(self, onnx_path: str) -> None:
+        """Rename ONNX graph outputs to names Unity expects."""
+        try:
+            import onnx
+        except ImportError:
+            logger.warning(
+                "onnx 未安装，无法对导出的 ONNX 输出重命名。运行 pip install onnx 可开启此功能。"
+            )
+            return
+        if not os.path.isfile(onnx_path):
+            return
+
+        model = onnx.load(onnx_path)
+        g = model.graph
+
+        current_outs = list(g.output)
+        n = min(len(current_outs), len(self.output_names))
+        if n == 0:
+            return
+
+        mapping = {
+            current_outs[i].name: self.output_names[i]
+            for i in range(n)
+            if current_outs[i].name != self.output_names[i]
+        }
+        if not mapping:
+            onnx.save(model, onnx_path)
+            return
+
+        def replace_all(old_name: str, new_name: str) -> None:
+            for out in g.output:
+                if out.name == old_name:
+                    out.name = new_name
+            for vi in g.value_info:
+                if vi.name == old_name:
+                    vi.name = new_name
+            for node in g.node:
+                for i, s in enumerate(node.input):
+                    if s == old_name:
+                        node.input[i] = new_name
+                for i, s in enumerate(node.output):
+                    if s == old_name:
+                        node.output[i] = new_name
+
+        tmp_prefix = "___unity_tmp_"
+        for old in mapping:
+            safe = old.replace("/", "_").replace(":", "_")[:50]
+            tmp = tmp_prefix + safe
+            replace_all(old, tmp)
+        for old, new in mapping.items():
+            safe = old.replace("/", "_").replace(":", "_")[:50]
+            tmp = tmp_prefix + safe
+            replace_all(tmp, new)
+
+        onnx.save(model, onnx_path)
+
     def export_policy_model(self, output_filepath: str) -> None:
         """
         Exports a Paddle model for a Policy to .onnx format for Unity embedding.
@@ -190,37 +227,17 @@ class ModelSerializer:
         model_output_path = f"{output_filepath}"
         logger.debug(f"Converting to {model_output_path}")
         self.policy.actor.eval()
-        # paddle.save(self.policy.actor.state_dict(), model_output_path)
-        paddle.jit.save(self.policy.actor, model_output_path, input_spec=self.input_specs)
-        # Ensure the model is in eval mode
+        paddle.save(self.policy.actor.state_dict(), model_output_path)
 
+        with exporting_to_onnx():
+            paddle.onnx.export(
+                self.policy.actor,
+                output_filepath,
+                input_spec=self.input_specs,
+                opset_version=SerializationSettings.onnx_opset,
+            )
 
-        #todo:onnx support
-        #
-        # with exporting_to_onnx():
-        #     # We use paddle.onnx.export which handles the conversion.
-        #     # Note: opset_version support depends on paddle2onnx version installed.
-        #
-        #     paddle.onnx.export(
-        #         self.policy.actor,
-        #         output_filepath, # Paddle adds .onnx or other suffixes, but usually we give prefix
-        #         input_spec=self.input_specs,
-        #         opset_version=SerializationSettings.onnx_opset
-        #     )
-        #
-        #     # Note on Output Names:
-        #     # Paddle's export mechanism doesn't natively support "renaming" output nodes
-        #     # via a simple list argument.
-        #     # The outputs will be named based on the variable names in the static graph.
-        #     # To strictly enforce TensorNames for Unity Sentis compatibility, one might need
-        #     # to use the `onnx` python library to load the model and rename output nodes manually
-        #     # after export.
-        #
-        #     # Example Post-Processing (Pseudo-code, requires 'onnx' lib):
-        #     # import onnx
-        #     # model = onnx.load(onnx_output_path)
-        #     # for i, output in enumerate(model.graph.output):
-        #     #     output.name = self.output_names[i]
-        #     # onnx.save(model, onnx_output_path)
-        #
-        # logger.info(f"Exported {onnx_output_path}")
+            onnx_path = f"{output_filepath}.onnx"
+            self._rename_unity_outputs(onnx_path)
+
+        logger.info(f"Exported {onnx_path}")

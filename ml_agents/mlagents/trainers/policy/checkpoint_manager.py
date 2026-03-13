@@ -1,4 +1,4 @@
-# # Unity ML-Agents Toolkit
+# Unity ML-Agents Toolkit
 from typing import Dict, Any, Optional, List
 import os
 import attr
@@ -63,6 +63,7 @@ class ModelCheckpointManager:
         while len(checkpoints) > keep_checkpoints:
             if keep_checkpoints <= 0 or len(checkpoints) == 0:
                 break
+
             ModelCheckpointManager.remove_checkpoint(checkpoints.pop(0))
         return checkpoints
 

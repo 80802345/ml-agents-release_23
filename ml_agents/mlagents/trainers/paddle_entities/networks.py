@@ -45,7 +45,6 @@ class ObservationEncoder(nn.Layer):
         Will use an RSA if needed for variable length observations.
         """
         super().__init__()
-        # ModelUtils 需要适配 Paddle 返回 Paddle 的 Layer
         self.processors, self.embedding_sizes = ModelUtils.create_input_processors(
             observation_specs,
             h_size,
@@ -88,7 +87,6 @@ class ObservationEncoder(nn.Layer):
         obs = ObsUtil.from_buffer(buffer, len(self.processors))
         for vec_input, enc in zip(obs, self.processors):
             if isinstance(enc, VectorInput):
-                # Paddle 处理 tensor 转换
                 enc.update_normalization(
                     paddle.to_tensor(vec_input.to_ndarray())
                 )
@@ -106,8 +104,6 @@ class ObservationEncoder(nn.Layer):
         """
         if isinstance(inputs, paddle.Tensor):
             inputs = [inputs]
-        # ==================================================
-
 
         encodes = []
         var_len_processor_inputs: List[Tuple[nn.Layer, paddle.Tensor]] = []
@@ -253,13 +249,8 @@ class NetworkBody(nn.Layer):
             encoding = self._body_endoder(encoded_self)
 
         if self.use_lstm:
-            # Resize to (batch, sequence length, encoding size)
-            # encoding = encoding.reshape([-1, sequence_length, self.h_size])
-            # encoding, memories = self.lstm(encoding, memories)
-            # encoding = encoding.reshape([-1, self.m_size // 2])
             encoding = encoding.reshape([-1, sequence_length, self.h_size])
             encoding, memories = self.lstm(encoding, memories)
-            # 用 -1 自动计算样本数，保证维度正确
             encoding = encoding.reshape([-1, self.m_size // 2])
         return encoding, memories
 
@@ -667,17 +658,28 @@ class SimpleActor(nn.Layer, Actor):
             deterministic_disc_action_out,
         ) = self.action_model.get_action_out(encoding, masks)
 
-        export_out = [self.version_number, self.memory_size_vector]
+        # 为了防止 Paddle 在导出 ONNX 时把纯常量 buffer 输出
+        # (version_number、memory_size_vector、*_act_size_vector)
+        # 折叠成 initializer 而不是输出，我们让这些张量在图上
+        # 依赖一次 encoding，但数值保持不变。
+        dummy = paddle.sum(encoding) * 0.0  # 标量，依赖输入但恒为 0
+
+        version_number_out = self.version_number + dummy
+        memory_size_out = self.memory_size_vector + dummy
+
+        export_out = [version_number_out, memory_size_out]
         if self.action_spec.continuous_size > 0:
+            continuous_act_size_out = self.continuous_act_size_vector + dummy
             export_out += [
                 cont_action_out,
-                self.continuous_act_size_vector,
+                continuous_act_size_out,
                 deterministic_cont_action_out,
             ]
         if self.action_spec.discrete_size > 0:
+            discrete_act_size_out = self.discrete_act_size_vector + dummy
             export_out += [
                 disc_action_out,
-                self.discrete_act_size_vector,
+                discrete_act_size_out,
                 deterministic_disc_action_out,
             ]
         if self.network_body.memory_size > 0:

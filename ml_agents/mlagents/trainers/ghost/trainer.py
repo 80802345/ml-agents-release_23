@@ -1,4 +1,4 @@
-# # Unity ML-Agents Toolkit
+# Unity ML-Agents Toolkit
 # ## ML-Agent Learning (Ghost Trainer)
 
 from collections import defaultdict

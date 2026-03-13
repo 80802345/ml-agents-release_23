@@ -54,12 +54,10 @@ def setup_init_path(
     """
     for behavior_name, ts in behaviors.items():
         if ts.init_path is None:
-            # set default if None
             ts.init_path = os.path.join(
                 init_dir, behavior_name, DEFAULT_CHECKPOINT_NAME
             )
         elif not os.path.dirname(ts.init_path):
-            # update to full path if just the file name
             ts.init_path = os.path.join(init_dir, behavior_name, ts.init_path)
         _validate_init_full_path(ts.init_path)
 
@@ -69,7 +67,7 @@ def _validate_init_full_path(init_file: str) -> None:
     Validate initialization path to be a .pt file
     :param init_file: full path to initialization checkpoint file
     """
-    if not (os.path.isfile(init_file) and init_file.endswith(".pt")):
+    if not (os.path.isfile(init_file) and init_file.endswith(".pdparams")):
         raise UnityTrainerException(
-            f"Could not initialize from {init_file}. file does not exists or is not a `.pt` file"
+            f"Could not initialize from {init_file}. file does not exists or is not a `.pdparams` file"
         )

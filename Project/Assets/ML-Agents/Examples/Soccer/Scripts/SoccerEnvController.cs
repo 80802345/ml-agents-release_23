@@ -22,20 +22,11 @@ public class SoccerEnvController : MonoBehaviour
     /// </summary>
     [Tooltip("Max Environment Steps")] public int MaxEnvironmentSteps = 25000;
 
-    /// <summary>
-    /// The area bounds.
-    /// </summary>
-
-    /// <summary>
-    /// We will be changing the ground material based on success/failue
-    /// </summary>
-
     public GameObject ball;
     [HideInInspector]
     public Rigidbody ballRb;
     Vector3 m_BallStartingPos;
 
-    //List of Agents On Platform
     public List<PlayerInfo> AgentsList = new List<PlayerInfo>();
 
     private SoccerSettings m_SoccerSettings;
@@ -50,7 +41,6 @@ public class SoccerEnvController : MonoBehaviour
     {
 
         m_SoccerSettings = FindFirstObjectByType<SoccerSettings>();
-        // Initialize TeamManager
         m_BlueAgentGroup = new SimpleMultiAgentGroup();
         m_PurpleAgentGroup = new SimpleMultiAgentGroup();
         ballRb = ball.GetComponent<Rigidbody>();
@@ -97,14 +87,14 @@ public class SoccerEnvController : MonoBehaviour
 
     public void GoalTouched(Team scoredTeam)
     {
-        if (scoredTeam == Team.Blue)
+         if (scoredTeam == Team.Blue)
         {
-            m_BlueAgentGroup.AddGroupReward(1 - (float)m_ResetTimer / MaxEnvironmentSteps);
+            m_BlueAgentGroup.AddGroupReward(4 - 1*(float)m_ResetTimer / MaxEnvironmentSteps);
             m_PurpleAgentGroup.AddGroupReward(-1);
         }
         else
         {
-            m_PurpleAgentGroup.AddGroupReward(1 - (float)m_ResetTimer / MaxEnvironmentSteps);
+            m_PurpleAgentGroup.AddGroupReward(4 - 1*(float)m_ResetTimer / MaxEnvironmentSteps);
             m_BlueAgentGroup.AddGroupReward(-1);
         }
         m_PurpleAgentGroup.EndGroupEpisode();

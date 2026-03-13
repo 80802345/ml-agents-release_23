@@ -1,4 +1,4 @@
-# # Unity ML-Agents Toolkit
+# Unity ML-Agents Toolkit
 import abc
 from typing import Any, Tuple, List
 

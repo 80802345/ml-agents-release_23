@@ -1,4 +1,4 @@
-# # Unity ML-Agents Toolkit
+# Unity ML-Agents Toolkit
 from typing import Dict, List, Optional
 from collections import defaultdict
 import abc

@@ -3,7 +3,8 @@ from math import floor
 
 import paddle
 import paddle.nn as nn
-
+import os
+os.environ["TRANSLATOR_VERBOSITY"] = '3'
 
 from mlagents.trainers.paddle_entities.layers import linear_layer, Initialization, Swish
 
@@ -11,15 +12,15 @@ from mlagents.trainers.paddle_entities.layers import linear_layer, Initializatio
 class Normalizer(nn.Layer):
     def __init__(self, vec_obs_size: int):
         super().__init__()
-        # register_buffer persists state but doesn't add to gradient computation
         self.register_buffer("normalization_steps", paddle.to_tensor((1), dtype='float32'))
         self.register_buffer("running_mean", paddle.zeros([vec_obs_size], dtype='float32'))
         self.register_buffer("running_variance", paddle.ones([vec_obs_size], dtype='float32'))
 
     def forward(self, inputs: paddle.Tensor) -> paddle.Tensor:
+
         normalized_state = paddle.clip(
             (inputs - self.running_mean)
-            / paddle.sqrt(self.running_variance / self.normalization_steps),
+            / paddle.sqrt(paddle.divide(self.running_variance , self.normalization_steps)),
             -5,
             5,
         )
@@ -31,7 +32,6 @@ class Normalizer(nn.Layer):
             total_new_steps = self.normalization_steps + steps_increment
 
             input_to_old_mean = vector_input - self.running_mean
-            # axis=0 sum
             new_mean = self.running_mean + (
                 input_to_old_mean / total_new_steps
             ).sum(0)
@@ -40,11 +40,6 @@ class Normalizer(nn.Layer):
             new_variance = self.running_variance + (
                 input_to_new_mean * input_to_old_mean
             ).sum(0)
-
-
-            # self.running_mean = new_mean
-            # self.running_variance = new_variance
-            # self.normalization_steps = total_new_steps
 
             paddle.assign(new_mean, self.running_mean)
             paddle.assign(new_variance, self.running_variance)
@@ -279,3 +274,7 @@ class ResNetVisualEncoder(nn.Layer):
         hidden = self.sequential(visual_obs)
         before_out = hidden.reshape([-1, self.final_flat_size])
         return paddle.nn.functional.relu(self.dense(before_out))
+if(__name__ == "__main__"):
+    normalizer = Normalizer(512)
+    x_spec = paddle.static.InputSpec([512],"float32",'x')
+    paddle.onnx.export(normalizer,"normal",[x_spec])
