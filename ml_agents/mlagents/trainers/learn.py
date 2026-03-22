@@ -1,6 +1,5 @@
 from mlagents import paddle_utils
 import yaml
-
 import os
 import numpy as np
 import json
@@ -34,7 +33,7 @@ from mlagents_envs import logging_util
 from mlagents.plugins.stats_writer import register_stats_writer_plugins
 from mlagents.plugins.trainer_type import register_trainer_plugins
 import os
-os.environ["TRANSLATOR_VERBOSITY"] = '3'
+# os.environ["TRANSLATOR_VERBOSITY"] = '3'
 logger = logging_util.get_logger(__name__)
 
 TRAINING_STATUS_FILE_NAME = "training_status.json"
@@ -52,12 +51,6 @@ def parse_command_line(
     argv: Optional[List[str]] = None,
 ) -> RunOptions:
     _, _ = register_trainer_plugins()
-    argv=[]
-    # argv.append("./soccer2.yaml")
-    argv.append("--run-id=SoccerTwo_2")
-    argv.append("./soccer2.yaml")
-    # argv.append("--initialize-from=ppo")
-    argv.append("--resume")
     args = parser.parse_args(argv)
     return RunOptions.from_argparse(args)
 
